@@ -1,0 +1,52 @@
+
+name: servi-red
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: servi-red-rabbitmq
+    restart: unless-stopped
+
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+
+    environment:
+      RABBITMQ_DEFAULT_USER: servi_red
+      RABBITMQ_DEFAULT_PASS: servi_red_dev_2026
+
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+    healthcheck:
+      test:
+        - CMD
+        - rabbitmq-diagnostics
+        - -q
+        - ping
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+
+    container_name: servi-red-worker
+    restart: unless-stopped
+
+    env_file:
+      - .env.local
+
+    environment:
+      RABBITMQ_URL: amqp://servi_red:servi_red_dev_2026@rabbitmq:5672
+      RABBITMQ_QUEUE: servi-red.reportes
+
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  rabbitmq_data:

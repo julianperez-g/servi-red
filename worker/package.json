@@ -1,0 +1,14 @@
+
+{
+  "name": "servi-red-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "postgres": "^3.4.7"
+  }
+}

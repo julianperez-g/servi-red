@@ -1,0 +1,19 @@
+
+import "server-only";
+import postgres from "postgres";
+
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL no esta configurada en .env.local"
+  );
+}
+
+export const sql = postgres(connectionString, {
+  max: 5,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  prepare: false,
+  ssl: "require",
+});
