@@ -16,7 +16,6 @@ const modulos = [
     ],
     enlace: "/simulador",
     boton: "Crear un reporte",
-    disponible: true,
     color: "blue",
   },
   {
@@ -33,24 +32,22 @@ const modulos = [
     ],
     enlace: "/mapa",
     boton: "Acceder al panel",
-    disponible: true,
     color: "cyan",
   },
   {
     numero: "03",
     icono: "▥",
-    categoria: "ANÁLISIS",
+    categoria: "DATOS ABIERTOS",
     titulo: "Indicadores y estadísticas",
     descripcion:
-      "Visualiza tendencias, niveles de atención, continuidad del servicio y estadísticas consolidadas.",
+      "Consulta estadísticas agregadas de los reportes, compara servicios y municipios y descarga datos en CSV.",
     caracteristicas: [
-      "Indicadores operativos",
+      "Indicadores públicos",
       "Estadísticas por servicio",
-      "Análisis de continuidad",
+      "Descarga de datos CSV",
     ],
     enlace: "/dashboard",
-    boton: "Próximamente",
-    disponible: false,
+    boton: "Consultar estadísticas",
     color: "violet",
   },
 ];
@@ -58,7 +55,6 @@ const modulos = [
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#070e1c] text-white">
-      {/* FONDO */}
       <div
         className="pointer-events-none fixed inset-0 opacity-40"
         style={{
@@ -68,14 +64,12 @@ export default function HomePage() {
       />
 
       <div className="relative">
-        {/* NAVEGACIÓN */}
         <header className="border-b border-white/10">
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-5 md:px-8">
             <Link href="/" className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-lg font-black shadow-lg shadow-blue-900/30">
                 SR
               </div>
-
               <div>
                 <p className="text-lg font-black tracking-tight">
                   SERVI-RED
@@ -88,12 +82,17 @@ export default function HomePage() {
 
             <nav className="flex items-center gap-3">
               <Link
+                href="/dashboard"
+                className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white md:block"
+              >
+                Datos abiertos
+              </Link>
+              <Link
                 href="/simulador"
                 className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white sm:block"
               >
                 Ciudadanos
               </Link>
-
               <Link
                 href="/login"
                 className="rounded-lg border border-blue-500/40 bg-blue-600/10 px-4 py-2.5 text-sm font-semibold text-blue-200 transition hover:bg-blue-600/20"
@@ -104,7 +103,6 @@ export default function HomePage() {
           </div>
         </header>
 
-        {/* HERO */}
         <section className="mx-auto max-w-7xl px-5 pb-14 pt-20 md:px-8 md:pb-20 md:pt-28">
           <div className="max-w-4xl">
             <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-4 py-2 text-xs font-semibold tracking-wide text-blue-300">
@@ -135,34 +133,35 @@ export default function HomePage() {
               >
                 Reportar una novedad →
               </Link>
-
+              <Link
+                href="/dashboard"
+                className="rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Consultar datos abiertos
+              </Link>
               <Link
                 href="/mapa"
                 className="rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                Ir al centro de operaciones
+                Centro de operaciones
               </Link>
             </div>
           </div>
         </section>
 
-        {/* SEPARADOR */}
         <div className="mx-auto max-w-7xl px-5 md:px-8">
           <div className="h-px bg-gradient-to-r from-blue-500/50 via-white/10 to-transparent" />
         </div>
 
-        {/* MÓDULOS */}
         <section className="mx-auto max-w-7xl px-5 py-16 md:px-8 md:py-20">
           <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="mb-3 text-xs font-bold uppercase tracking-[.2em] text-blue-400">
                 Ecosistema SERVI-RED
               </p>
-
               <h2 className="text-3xl font-black tracking-tight md:text-4xl">
                 Explora la plataforma
               </h2>
-
               <p className="mt-3 max-w-xl text-sm leading-7 text-slate-400">
                 Selecciona el módulo correspondiente para acceder
                 a las herramientas disponibles.
@@ -170,7 +169,7 @@ export default function HomePage() {
             </div>
 
             <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-400">
-              2 módulos disponibles · 1 en desarrollo
+              3 módulos disponibles
             </span>
           </div>
 
@@ -178,11 +177,7 @@ export default function HomePage() {
             {modulos.map((modulo) => (
               <article
                 key={modulo.numero}
-                className={`group relative flex min-h-[410px] flex-col overflow-hidden rounded-2xl border bg-[#101b30]/80 p-7 transition duration-300 ${
-                  modulo.disponible
-                    ? "border-white/10 hover:-translate-y-1 hover:border-blue-400/40 hover:shadow-xl hover:shadow-blue-950/30"
-                    : "border-white/5 opacity-75"
-                }`}
+                className="group relative flex min-h-[410px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#101b30]/80 p-7 transition duration-300 hover:-translate-y-1 hover:border-blue-400/40 hover:shadow-xl hover:shadow-blue-950/30"
               >
                 <div className="absolute right-0 top-0 h-36 w-36 rounded-full bg-blue-500/5 blur-3xl" />
 
@@ -198,7 +193,6 @@ export default function HomePage() {
                   >
                     {modulo.icono}
                   </div>
-
                   <span className="text-sm font-bold text-slate-600">
                     {modulo.numero}
                   </span>
@@ -208,11 +202,9 @@ export default function HomePage() {
                   <p className="text-xs font-bold tracking-[.16em] text-blue-400">
                     {modulo.categoria}
                   </p>
-
                   <h3 className="mt-3 text-2xl font-bold tracking-tight">
                     {modulo.titulo}
                   </h3>
-
                   <p className="mt-4 min-h-[88px] text-sm leading-7 text-slate-400">
                     {modulo.descripcion}
                   </p>
@@ -233,38 +225,28 @@ export default function HomePage() {
                 </div>
 
                 <div className="relative mt-auto pt-8">
-                  {modulo.disponible ? (
-                    <Link
-                      href={modulo.enlace}
-                      className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-bold transition hover:border-blue-500/30 hover:bg-blue-600"
-                    >
-                      {modulo.boton}
-                      <span>→</span>
-                    </Link>
-                  ) : (
-                    <div className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[.03] px-5 py-3.5 text-sm font-semibold text-slate-500">
-                      {modulo.boton}
-                      <span>◷</span>
-                    </div>
-                  )}
+                  <Link
+                    href={modulo.enlace}
+                    className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-bold transition hover:border-blue-500/30 hover:bg-blue-600"
+                  >
+                    {modulo.boton}
+                    <span>→</span>
+                  </Link>
                 </div>
               </article>
             ))}
           </div>
         </section>
 
-        {/* INFORMACIÓN */}
         <section className="mx-auto max-w-7xl px-5 pb-20 md:px-8">
           <div className="grid gap-8 rounded-2xl border border-blue-500/15 bg-gradient-to-r from-blue-950/50 to-[#101b30] p-7 md:grid-cols-[1.5fr_1fr] md:items-center md:p-10">
             <div>
               <p className="text-xs font-bold uppercase tracking-[.2em] text-cyan-400">
                 Arquitectura distribuida
               </p>
-
               <h2 className="mt-3 text-2xl font-bold md:text-3xl">
                 Información para una gestión más eficiente.
               </h2>
-
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-400">
                 La plataforma integra autenticación, procesamiento
                 asíncrono, almacenamiento de evidencias y
@@ -278,7 +260,7 @@ export default function HomePage() {
                 ["01", "Registro ciudadano"],
                 ["02", "Monitoreo geográfico"],
                 ["03", "Gestión operativa"],
-                ["04", "Trazabilidad"],
+                ["04", "Datos abiertos"],
               ].map(([numero, nombre]) => (
                 <div
                   key={numero}
@@ -296,17 +278,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* FOOTER */}
         <footer className="border-t border-white/10">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-5 py-7 text-xs text-slate-500 md:px-8">
             <p>
               © {new Date().getFullYear()} SERVI-RED · Proyecto
               académico de Arquitectura de Software
             </p>
-
-            <p>
-              Pontificia Universidad Javeriana · Colombia
-            </p>
+            <p>Pontificia Universidad Javeriana · Colombia</p>
           </div>
         </footer>
       </div>

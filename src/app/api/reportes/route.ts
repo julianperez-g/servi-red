@@ -1,13 +1,30 @@
 
-import { NextResponse } from "next/server";
-import { sql } from "@/infrastructure/database/postgres";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  autenticarOperador,
+  sqlOperadores,
+} from "@/lib/authOperador";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const reportes = await sql`
+    const operador = await autenticarOperador(
+      request.headers.get("authorization")
+    );
+
+    if (!operador) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "Operador no autenticado o no autorizado",
+        },
+        { status: 401 }
+      );
+    }
+
+    const reportes = await sqlOperadores`
       SELECT
         r.id,
         r.municipio_id,
@@ -20,36 +37,40 @@ export async function GET() {
         r.fecha_reporte,
         r.fecha_restablecimiento,
         r.creado_en,
-
         ST_Y(r.ubicacion::geometry) AS latitud,
         ST_X(r.ubicacion::geometry) AS longitud,
-
         EXISTS (
           SELECT 1
-          FROM public.evidencias AS e
+          FROM public.evidencias e
           WHERE e.reporte_id = r.id
         ) AS tiene_evidencia
-
-      FROM public.reportes AS r
-
+      FROM public.reportes r
+      WHERE EXISTS (
+        SELECT 1
+        FROM public.empresa_servicios es
+        WHERE es.empresa_id = ${operador.empresa_id}
+          AND es.servicio_id = r.servicio_id
+      )
       ORDER BY r.fecha_reporte DESC
-
       LIMIT 100
     `;
 
-    return NextResponse.json({
-      status: "ok",
-      sistema: "SERVI-RED",
-      total: reportes.length,
-      reportes,
-    });
-  } catch (error) {
-    console.error(
-      "Error consultando reportes:",
-      error instanceof Error
-        ? error.message
-        : "Error desconocido"
+    return NextResponse.json(
+      {
+        status: "ok",
+        sistema: "SERVI-RED",
+        total: reportes.length,
+        reportes,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff",
+        },
+      }
     );
+  } catch (error) {
+    console.error("Error consultando reportes:", error);
 
     return NextResponse.json(
       {

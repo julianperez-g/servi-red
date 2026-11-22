@@ -16,17 +16,11 @@ type Reporte = {
   tipo_novedad: string;
   descripcion: string;
   severidad: Severidad;
-  estado: string;
+  estado: Estado;
   fecha_reporte: string;
   latitud: number;
   longitud: number;
   tiene_evidencia: boolean;
-};
-
-type Grupo = {
-  lat: number;
-  lng: number;
-  reportes: Reporte[];
 };
 
 type Actuacion = {
@@ -36,6 +30,12 @@ type Actuacion = {
   observacion: string;
   fecha_cambio: string;
   operador: string;
+};
+
+type Grupo = {
+  lat: number;
+  lng: number;
+  reportes: Reporte[];
 };
 
 const municipios: Record<string, string> = {
@@ -59,8 +59,6 @@ const colores: Record<Severidad, string> = {
 };
 
 function formatearFecha(fecha: string): string {
-  if (!fecha) return "Fecha no disponible";
-
   const valor = new Date(fecha);
 
   if (Number.isNaN(valor.getTime())) {
@@ -82,10 +80,22 @@ function nombreEstado(estado: string): string {
   return estado.replaceAll("_", " ");
 }
 
-function siguienteEstado(estado: string): Estado | null {
+function siguienteEstado(estado: Estado): Estado | null {
   if (estado === "REPORTADO") return "EN_ATENCION";
   if (estado === "EN_ATENCION") return "RESUELTO";
   return null;
+}
+
+async function obtenerToken(): Promise<string> {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error || !data.session?.access_token) {
+    throw new Error(
+      "Tu sesión ha expirado. Inicia sesión nuevamente."
+    );
+  }
+
+  return data.session.access_token;
 }
 
 function agruparReportes(reportes: Reporte[]): Grupo[] {
@@ -131,10 +141,8 @@ function severidadMayor(reportes: Reporte[]): Severidad {
 function crearPopup(reportes: Reporte[]): HTMLElement {
   const contenedor = document.createElement("div");
 
-  contenedor.style.minWidth = "220px";
-  contenedor.style.maxWidth = "300px";
-  contenedor.style.maxHeight = "360px";
-  contenedor.style.overflowY = "auto";
+  contenedor.style.cssText =
+    "min-width:220px;max-width:300px;max-height:360px;overflow-y:auto";
 
   const encabezado = document.createElement("strong");
 
@@ -148,44 +156,41 @@ function crearPopup(reportes: Reporte[]): HTMLElement {
   for (const reporte of reportes) {
     const bloque = document.createElement("div");
 
-    bloque.style.padding = "10px 0";
-    bloque.style.borderBottom = "1px solid #e2e8f0";
+    bloque.style.cssText =
+      "padding:10px 0;border-bottom:1px solid #e2e8f0";
 
     const titulo = document.createElement("strong");
     titulo.textContent =
       servicios[reporte.servicio_id] || "Servicio público";
 
     const ciudad = document.createElement("p");
-    ciudad.style.margin = "4px 0";
     ciudad.textContent =
       municipios[String(reporte.municipio_id)] ||
       "Municipio desconocido";
 
     const descripcion = document.createElement("p");
-    descripcion.style.margin = "6px 0";
     descripcion.textContent = reporte.descripcion;
 
     const fecha = document.createElement("p");
-    fecha.style.fontSize = "12px";
-    fecha.style.color = "#64748b";
-    fecha.style.margin = "8px 0";
+    fecha.style.cssText =
+      "font-size:12px;color:#64748b;margin:8px 0";
     fecha.textContent =
-      `📅 Registrado: ${formatearFecha(reporte.fecha_reporte)}`;
+      `Registrado: ${formatearFecha(reporte.fecha_reporte)}`;
 
     const estado = document.createElement("p");
-    estado.style.fontSize = "12px";
-    estado.style.color = colores[reporte.severidad];
+    estado.style.cssText =
+      "font-size:12px;margin:8px 0";
     estado.textContent =
       `Severidad: ${reporte.severidad} | ` +
       `Estado: ${nombreEstado(reporte.estado)}`;
 
-    bloque.append(titulo, ciudad, descripcion, fecha, estado);
-
-    const botones = document.createElement("div");
-    botones.style.display = "flex";
-    botones.style.flexWrap = "wrap";
-    botones.style.gap = "6px";
-    botones.style.marginTop = "8px";
+    bloque.append(
+      titulo,
+      ciudad,
+      descripcion,
+      fecha,
+      estado
+    );
 
     function crearBoton(
       texto: string,
@@ -196,13 +201,10 @@ function crearPopup(reportes: Reporte[]): HTMLElement {
 
       boton.type = "button";
       boton.textContent = texto;
-      boton.style.background = color;
-      boton.style.color = "#ffffff";
-      boton.style.border = "none";
-      boton.style.borderRadius = "8px";
-      boton.style.padding = "8px 10px";
-      boton.style.cursor = "pointer";
-      boton.style.fontSize = "12px";
+      boton.style.cssText =
+        `display:block;background:${color};color:white;` +
+        "border:0;border-radius:8px;padding:8px 10px;" +
+        "margin-top:8px;cursor:pointer;font-size:12px";
 
       boton.addEventListener("click", () => {
         window.dispatchEvent(
@@ -216,24 +218,23 @@ function crearPopup(reportes: Reporte[]): HTMLElement {
     }
 
     if (reporte.tiene_evidencia) {
-      botones.appendChild(
+      bloque.appendChild(
         crearBoton(
-          "📷 Ver fotografía",
+          "Ver fotografía",
           "#2563eb",
           "servired:ver-evidencia"
         )
       );
     }
 
-    botones.appendChild(
+    bloque.appendChild(
       crearBoton(
-        "⚙️ Gestionar",
+        "Gestionar incidente",
         "#0f172a",
         "servired:gestionar-reporte"
       )
     );
 
-    bloque.appendChild(botones);
     contenedor.appendChild(bloque);
   }
 
@@ -256,6 +257,14 @@ export default function MapaReportes() {
   const [imagenReporte, setImagenReporte] =
     useState<string | null>(null);
 
+  const [urlEvidencia, setUrlEvidencia] =
+    useState<string | null>(null);
+
+  const [cargandoEvidencia, setCargandoEvidencia] =
+    useState(false);
+
+  const [errorEvidencia, setErrorEvidencia] = useState("");
+
   const [reporteGestion, setReporteGestion] =
     useState<string | null>(null);
 
@@ -277,15 +286,23 @@ export default function MapaReportes() {
       }
 
       try {
+        const token = await obtenerToken();
+
         const respuesta = await fetch("/api/reportes", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
           cache: "no-store",
         });
 
-        if (!respuesta.ok) {
-          throw new Error("No fue posible consultar los reportes");
-        }
-
         const datos = await respuesta.json();
+
+        if (!respuesta.ok) {
+          throw new Error(
+            datos.message ||
+            "No fue posible consultar los reportes"
+          );
+        }
 
         if (
           datos.status !== "ok" ||
@@ -297,10 +314,11 @@ export default function MapaReportes() {
         setReportes(datos.reportes);
         setError("");
       } catch (err) {
+        setReportes([]);
         setError(
           err instanceof Error
             ? err.message
-            : "Error desconocido"
+            : "Error consultando reportes"
         );
       } finally {
         setCargando(false);
@@ -310,22 +328,10 @@ export default function MapaReportes() {
     []
   );
 
-  const obtenerToken = useCallback(async () => {
-    const { data, error: sessionError } =
-      await supabase.auth.getSession();
-
-    if (sessionError || !data.session) {
-      throw new Error(
-        "Tu sesión ha expirado. Inicia sesión nuevamente."
-      );
-    }
-
-    return data.session.access_token;
-  }, []);
-
   const cargarHistorial = useCallback(
     async (reporteId: string) => {
       setCargandoHistorial(true);
+      setErrorGestion("");
 
       try {
         const token = await obtenerToken();
@@ -349,7 +355,9 @@ export default function MapaReportes() {
         }
 
         setHistorial(
-          Array.isArray(datos.historial) ? datos.historial : []
+          Array.isArray(datos.historial)
+            ? datos.historial
+            : []
         );
       } catch (err) {
         setHistorial([]);
@@ -362,7 +370,7 @@ export default function MapaReportes() {
         setCargandoHistorial(false);
       }
     },
-    [obtenerToken]
+    []
   );
 
   const abrirGestion = useCallback(
@@ -378,16 +386,6 @@ export default function MapaReportes() {
     [cargarHistorial]
   );
 
-  const cerrarGestion = () => {
-    if (guardando) return;
-
-    setReporteGestion(null);
-    setObservacion("");
-    setHistorial([]);
-    setErrorGestion("");
-    setMensajeGestion("");
-  };
-
   const actualizarEstado = async () => {
     if (!reporteGestion || guardando) return;
 
@@ -396,7 +394,7 @@ export default function MapaReportes() {
     );
 
     if (!reporte) {
-      setErrorGestion("No se encontró el reporte seleccionado");
+      setErrorGestion("Reporte no encontrado");
       return;
     }
 
@@ -404,7 +402,7 @@ export default function MapaReportes() {
 
     if (!proximo) {
       setErrorGestion(
-        "Este incidente ya está resuelto o no admite cambios"
+        "Este incidente ya está resuelto"
       );
       return;
     }
@@ -479,48 +477,110 @@ export default function MapaReportes() {
   }, [cargarReportes]);
 
   useEffect(() => {
-    function abrirFotografia(evento: Event) {
-      const personalizado = evento as CustomEvent<string>;
+    if (!imagenReporte) return;
 
-      if (typeof personalizado.detail === "string") {
-        setImagenReporte(personalizado.detail);
+    let cancelado = false;
+    let urlTemporal: string | null = null;
+
+    async function cargarFotografia() {
+      setCargandoEvidencia(true);
+      setErrorEvidencia("");
+      setUrlEvidencia(null);
+
+      try {
+        const token = await obtenerToken();
+
+        const respuesta = await fetch(
+          `/api/evidencias/ver?reporteId=${encodeURIComponent(
+            imagenReporte!
+          )}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            cache: "no-store",
+          }
+        );
+
+        if (!respuesta.ok) {
+          throw new Error(
+            "No fue posible consultar la fotografía"
+          );
+        }
+
+        const imagen = await respuesta.blob();
+
+        if (cancelado) return;
+
+        urlTemporal = URL.createObjectURL(imagen);
+        setUrlEvidencia(urlTemporal);
+      } catch (err) {
+        if (!cancelado) {
+          setErrorEvidencia(
+            err instanceof Error
+              ? err.message
+              : "Error consultando evidencia"
+          );
+        }
+      } finally {
+        if (!cancelado) {
+          setCargandoEvidencia(false);
+        }
       }
     }
 
-    function abrirDesdeMapa(evento: Event) {
-      const personalizado = evento as CustomEvent<string>;
+    void cargarFotografia();
 
-      if (typeof personalizado.detail === "string") {
-        abrirGestion(personalizado.detail);
+    return () => {
+      cancelado = true;
+
+      if (urlTemporal) {
+        URL.revokeObjectURL(urlTemporal);
+      }
+    };
+  }, [imagenReporte]);
+
+  useEffect(() => {
+    function abrirFoto(evento: Event) {
+      const id = (evento as CustomEvent<string>).detail;
+
+      if (typeof id === "string") {
+        setImagenReporte(id);
+      }
+    }
+
+    function abrirPanel(evento: Event) {
+      const id = (evento as CustomEvent<string>).detail;
+
+      if (typeof id === "string") {
+        abrirGestion(id);
       }
     }
 
     window.addEventListener(
       "servired:ver-evidencia",
-      abrirFotografia
+      abrirFoto
     );
 
     window.addEventListener(
       "servired:gestionar-reporte",
-      abrirDesdeMapa
+      abrirPanel
     );
 
     return () => {
       window.removeEventListener(
         "servired:ver-evidencia",
-        abrirFotografia
+        abrirFoto
       );
 
       window.removeEventListener(
         "servired:gestionar-reporte",
-        abrirDesdeMapa
+        abrirPanel
       );
     };
   }, [abrirGestion]);
 
-  // IMPORTANTE:
-  // Inicializamos Leaflet una sola vez.
-  // Esto conserva la corrección del error _leaflet_pos.
+  // Inicializar Leaflet una sola vez.
   useEffect(() => {
     let cancelado = false;
     let instancia: LeafletMap | null = null;
@@ -535,11 +595,9 @@ export default function MapaReportes() {
           zoomAnimation: false,
           markerZoomAnimation: false,
           fadeAnimation: false,
-        }).setView(
-          [4.7, -74.1],
-          6,
-          { animate: false }
-        );
+        }).setView([4.7, -74.1], 6, {
+          animate: false,
+        });
 
         mapa.current = instancia;
 
@@ -588,10 +646,11 @@ export default function MapaReportes() {
   }, []);
 
   const visibles = reportes.filter(
-    (r) => filtro === "TODAS" || r.severidad === filtro
+    (r) =>
+      filtro === "TODAS" ||
+      r.severidad === filtro
   );
 
-  // Actualizamos marcadores sin recrear el mapa.
   useEffect(() => {
     if (
       !mapaListo ||
@@ -629,18 +688,26 @@ export default function MapaReportes() {
 
         puntos.push([lat, lng]);
 
-        const color = colores[severidadMayor(incidentes)];
+        const color = colores[
+          severidadMayor(incidentes)
+        ];
 
         if (incidentes.length === 1) {
-          const marcador = L.circleMarker([lat, lng], {
-            radius: 10,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: color,
-            fillOpacity: 0.95,
-          });
+          const marcador = L.circleMarker(
+            [lat, lng],
+            {
+              radius: 10,
+              color: "#ffffff",
+              weight: 2,
+              fillColor: color,
+              fillOpacity: 0.95,
+            }
+          );
 
-          marcador.bindPopup(crearPopup(incidentes));
+          marcador.bindPopup(
+            crearPopup(incidentes)
+          );
+
           capa.addLayer(marcador);
         } else {
           const cantidad = incidentes.length;
@@ -669,24 +736,29 @@ export default function MapaReportes() {
             iconAnchor: [19, 19],
           });
 
-          const marcador = L.marker([lat, lng], {
-            icon: icono,
-          });
+          const marcador = L.marker(
+            [lat, lng],
+            { icon: icono }
+          );
 
-          marcador.bindPopup(crearPopup(incidentes), {
-            maxWidth: 320,
-          });
+          marcador.bindPopup(
+            crearPopup(incidentes),
+            { maxWidth: 320 }
+          );
 
           capa.addLayer(marcador);
         }
       }
 
       if (puntos.length > 0) {
-        instancia.fitBounds(L.latLngBounds(puntos), {
-          padding: [45, 45],
-          maxZoom: 12,
-          animate: false,
-        });
+        instancia.fitBounds(
+          L.latLngBounds(puntos),
+          {
+            padding: [45, 45],
+            maxZoom: 12,
+            animate: false,
+          }
+        );
       }
     }
 
@@ -725,15 +797,22 @@ export default function MapaReportes() {
             </h1>
 
             <p className="mt-2 text-slate-600">
-              Monitoreo y atención de novedades en servicios
-              públicos domiciliarios.
+              Monitoreo y atención de novedades
+              en servicios públicos domiciliarios.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <a
+              href="/"
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
+            >
+              Inicio
+            </a>
+
+            <a
               href="/simulador"
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
             >
               Simulador ciudadano
             </a>
@@ -742,7 +821,7 @@ export default function MapaReportes() {
               type="button"
               onClick={() => void cargarReportes()}
               disabled={actualizando || cargando}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
             >
               {actualizando
                 ? "Actualizando..."
@@ -756,7 +835,6 @@ export default function MapaReportes() {
             titulo="Total de reportes"
             valor={reportes.length}
           />
-
           <Tarjeta
             titulo="Severidad alta"
             valor={
@@ -765,7 +843,6 @@ export default function MapaReportes() {
               ).length
             }
           />
-
           <Tarjeta
             titulo="En atención"
             valor={
@@ -774,7 +851,6 @@ export default function MapaReportes() {
               ).length
             }
           />
-
           <Tarjeta
             titulo="Resueltos"
             valor={
@@ -783,7 +859,6 @@ export default function MapaReportes() {
               ).length
             }
           />
-
           <Tarjeta
             titulo="Con fotografía"
             valor={totalFotos}
@@ -850,10 +925,9 @@ export default function MapaReportes() {
           </div>
 
           <p className="mt-3 text-xs text-slate-500">
-            Mostrando {visibles.length} de {reportes.length}{" "}
-            reportes en {grupos.length} ubicaciones.
-            Los marcadores numerados agrupan incidentes
-            en el mismo punto.
+            Mostrando {visibles.length} de{" "}
+            {reportes.length} reportes en{" "}
+            {grupos.length} ubicaciones.
           </p>
 
           <p className="mt-1 text-xs text-slate-400">
@@ -887,8 +961,7 @@ export default function MapaReportes() {
                       className="rounded-full px-3 py-1 text-xs font-bold text-white"
                       style={{
                         backgroundColor:
-                          colores[reporte.severidad] ||
-                          "#2563eb",
+                          colores[reporte.severidad],
                       }}
                     >
                       {reporte.severidad}
@@ -906,7 +979,7 @@ export default function MapaReportes() {
                   </p>
 
                   <p className="mt-3 text-xs font-medium text-slate-600">
-                    📅 Registrado:{" "}
+                    Registrado:{" "}
                     {formatearFecha(reporte.fecha_reporte)}
                   </p>
 
@@ -921,9 +994,9 @@ export default function MapaReportes() {
                         onClick={() =>
                           setImagenReporte(reporte.id)
                         }
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
                       >
-                        📷 Ver fotografía
+                        Ver fotografía
                       </button>
                     )}
 
@@ -932,9 +1005,9 @@ export default function MapaReportes() {
                       onClick={() =>
                         abrirGestion(reporte.id)
                       }
-                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
                     >
-                      ⚙️ Gestionar incidente
+                      Gestionar incidente
                     </button>
                   </div>
                 </article>
@@ -950,13 +1023,15 @@ export default function MapaReportes() {
         </section>
       </div>
 
-      {/* MODAL DE GESTIÓN */}
-
       {reporteGestion && reporteSeleccionado && (
         <div
           role="presentation"
           className="fixed inset-0 z-[2100] flex items-center justify-center bg-black/70 p-4"
-          onClick={cerrarGestion}
+          onClick={() => {
+            if (!guardando) {
+              setReporteGestion(null);
+            }
+          }}
         >
           <div
             role="dialog"
@@ -967,7 +1042,7 @@ export default function MapaReportes() {
           >
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                <p className="text-xs font-semibold uppercase text-blue-700">
                   SERVI-RED · Operadores
                 </p>
 
@@ -978,7 +1053,9 @@ export default function MapaReportes() {
 
               <button
                 type="button"
-                onClick={cerrarGestion}
+                onClick={() =>
+                  setReporteGestion(null)
+                }
                 disabled={guardando}
                 className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50"
               >
@@ -1003,18 +1080,14 @@ export default function MapaReportes() {
                 {reporteSeleccionado.descripcion}
               </p>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700">
-                  Estado:{" "}
-                  {nombreEstado(reporteSeleccionado.estado)}
-                </span>
-
-                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-800">
-                  Severidad: {reporteSeleccionado.severidad}
-                </span>
-              </div>
-
               <p className="mt-3 text-xs text-slate-500">
+                Estado:{" "}
+                {nombreEstado(reporteSeleccionado.estado)}
+                {" · "}
+                Severidad: {reporteSeleccionado.severidad}
+              </p>
+
+              <p className="mt-2 text-xs text-slate-500">
                 Registrado:{" "}
                 {formatearFecha(
                   reporteSeleccionado.fecha_reporte
@@ -1025,7 +1098,7 @@ export default function MapaReportes() {
             {mensajeGestion && (
               <p
                 role="status"
-                className="mt-4 rounded-lg bg-green-50 p-3 text-sm font-medium text-green-700"
+                className="mt-4 rounded-lg bg-green-50 p-3 text-sm text-green-700"
               >
                 {mensajeGestion}
               </p>
@@ -1034,7 +1107,7 @@ export default function MapaReportes() {
             {errorGestion && (
               <p
                 role="alert"
-                className="mt-4 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700"
+                className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
               >
                 {errorGestion}
               </p>
@@ -1069,7 +1142,7 @@ export default function MapaReportes() {
                     }
                     rows={4}
                     maxLength={2000}
-                    placeholder="Describe la actuación realizada, las verificaciones o la solución aplicada..."
+                    placeholder="Describe la actuación realizada o la solución aplicada..."
                     className="mt-2 w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-900 outline-none focus:border-blue-500"
                   />
 
@@ -1080,23 +1153,27 @@ export default function MapaReportes() {
 
                   <button
                     type="button"
-                    onClick={() => void actualizarEstado()}
+                    onClick={() =>
+                      void actualizarEstado()
+                    }
                     disabled={
                       guardando ||
                       observacion.trim().length < 5
                     }
-                    className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white disabled:opacity-50"
                   >
                     {guardando
                       ? "Guardando actuación..."
-                      : `Cambiar a ${nombreEstado(proximoEstado)}`}
+                      : `Cambiar a ${nombreEstado(
+                          proximoEstado
+                        )}`}
                   </button>
                 </>
               ) : (
-                <div className="mt-3 rounded-lg bg-green-50 p-4 text-sm text-green-800">
+                <p className="mt-3 rounded-lg bg-green-50 p-4 text-sm text-green-800">
                   Este incidente está resuelto o no admite
                   nuevas transiciones.
-                </div>
+                </p>
               )}
             </div>
 
@@ -1112,7 +1189,7 @@ export default function MapaReportes() {
                     void cargarHistorial(reporteGestion)
                   }
                   disabled={cargandoHistorial}
-                  className="text-sm font-semibold text-blue-700 hover:underline disabled:opacity-50"
+                  className="text-sm font-semibold text-blue-700 disabled:opacity-50"
                 >
                   Actualizar
                 </button>
@@ -1136,8 +1213,8 @@ export default function MapaReportes() {
                       <p className="text-sm font-semibold text-slate-900">
                         {nombreEstado(
                           actuacion.estado_anterior
-                        )}{" "}
-                        →{" "}
+                        )}
+                        {" → "}
                         {nombreEstado(
                           actuacion.estado_nuevo
                         )}
@@ -1148,7 +1225,8 @@ export default function MapaReportes() {
                       </p>
 
                       <p className="mt-3 text-xs text-slate-500">
-                        {actuacion.operador} ·{" "}
+                        {actuacion.operador}
+                        {" · "}
                         {formatearFecha(
                           actuacion.fecha_cambio
                         )}
@@ -1161,8 +1239,6 @@ export default function MapaReportes() {
           </div>
         </div>
       )}
-
-      {/* MODAL DE FOTOGRAFÍA */}
 
       {imagenReporte && (
         <div
@@ -1184,22 +1260,38 @@ export default function MapaReportes() {
 
               <button
                 type="button"
-                onClick={() => setImagenReporte(null)}
+                onClick={() =>
+                  setImagenReporte(null)
+                }
                 className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700"
               >
                 Cerrar ✕
               </button>
             </div>
 
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              key={imagenReporte}
-              src={`/api/evidencias/ver?reporteId=${encodeURIComponent(
-                imagenReporte
-              )}`}
-              alt="Fotografía adjunta al reporte ciudadano"
-              className="max-h-[70vh] w-full rounded-xl bg-slate-100 object-contain"
-            />
+            {cargandoEvidencia && (
+              <p className="py-8 text-center text-slate-600">
+                Cargando fotografía...
+              </p>
+            )}
+
+            {errorEvidencia && (
+              <p
+                role="alert"
+                className="py-5 text-sm text-red-600"
+              >
+                {errorEvidencia}
+              </p>
+            )}
+
+            {urlEvidencia && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={urlEvidencia}
+                alt="Fotografía adjunta al reporte ciudadano"
+                className="max-h-[70vh] w-full rounded-xl bg-slate-100 object-contain"
+              />
+            )}
 
             <p className="mt-3 break-all text-xs text-slate-500">
               Reporte: {imagenReporte}
@@ -1220,7 +1312,9 @@ function Tarjeta({
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs text-slate-500">{titulo}</p>
+      <p className="text-xs text-slate-500">
+        {titulo}
+      </p>
 
       <p className="mt-2 text-3xl font-bold text-slate-900">
         {valor}
@@ -1242,7 +1336,6 @@ function Leyenda({
         className="h-3 w-3 rounded-full"
         style={{ backgroundColor: color }}
       />
-
       <span>{texto}</span>
     </div>
   );

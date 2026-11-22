@@ -1,6 +1,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
-import { sql } from "@/infrastructure/database/postgres";
+import {
+  autenticarOperador,
+  sqlOperadores,
+} from "@/lib/authOperador";
 import { supabaseStorage } from "@/infrastructure/storage/supabaseStorage";
 
 export const runtime = "nodejs";
@@ -10,28 +13,51 @@ const BUCKET = "evidencias-reportes";
 
 export async function GET(request: NextRequest) {
   try {
+    const operador = await autenticarOperador(
+      request.headers.get("authorization")
+    );
+
+    if (!operador) {
+      return NextResponse.json(
+        {
+          status: "error",
+          message: "No autorizado",
+        },
+        { status: 401 }
+      );
+    }
+
     const reporteId = request.nextUrl.searchParams.get("reporteId");
 
     if (
       !reporteId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         reporteId
       )
     ) {
       return NextResponse.json(
-        { status: "error", message: "ID de reporte invalido" },
+        {
+          status: "error",
+          message: "ID de reporte inválido",
+        },
         { status: 400 }
       );
     }
 
-    const evidencias = await sql`
+    const evidencias = await sqlOperadores`
       SELECT
         e.storage_key,
         e.tipo_mime
-      FROM public.evidencias AS e
-      INNER JOIN public.reportes AS r
+      FROM public.evidencias e
+      INNER JOIN public.reportes r
         ON r.id = e.reporte_id
       WHERE e.reporte_id = ${reporteId}::uuid
+        AND EXISTS (
+          SELECT 1
+          FROM public.empresa_servicios es
+          WHERE es.empresa_id = ${operador.empresa_id}
+            AND es.servicio_id = r.servicio_id
+        )
       ORDER BY e.creado_en DESC
       LIMIT 1
     `;
@@ -40,7 +66,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         {
           status: "error",
-          message: "Este reporte no tiene evidencia",
+          message: "Evidencia no encontrada o sin permiso",
         },
         { status: 404 }
       );
@@ -67,31 +93,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const bytes = await data.arrayBuffer();
     const tipo = String(evidencias[0].tipo_mime);
 
-    return new NextResponse(bytes, {
+    const tipoSeguro = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ].includes(tipo)
+      ? tipo
+      : "application/octet-stream";
+
+    return new NextResponse(await data.arrayBuffer(), {
       status: 200,
       headers: {
-        "Content-Type": [
-          "image/jpeg",
-          "image/png",
-          "image/webp",
-        ].includes(tipo)
-          ? tipo
-          : "application/octet-stream",
+        "Content-Type": tipoSeguro,
         "Content-Disposition": "inline",
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (error) {
-    console.error(
-      "Error consultando evidencia:",
-      error instanceof Error
-        ? error.message
-        : "Error desconocido"
-    );
+    console.error("Error consultando evidencia:", error);
 
     return NextResponse.json(
       {
