@@ -1,0 +1,11 @@
+.env*
+.agents/
+.git/
+.next/
+node_modules/
+supabase/
+worker/
+services/
+scripts/
+*.tsbuildinfo
+*.log

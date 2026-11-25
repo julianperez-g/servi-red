@@ -1,8 +1,8 @@
 
 import "server-only";
 import amqp from "amqplib";
+import { configurarRabbitMQ } from "./rabbitmq-config.mjs";
 
-const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE_NAME =
   process.env.RABBITMQ_QUEUE || "servi-red.reportes";
 
@@ -25,11 +25,8 @@ export type EventoReporte = {
 export async function publicarReporte(
   evento: EventoReporte
 ): Promise<void> {
-  if (!RABBITMQ_URL) {
-    throw new Error("RABBITMQ_URL no esta configurada");
-  }
-
-  const conexion = await amqp.connect(RABBITMQ_URL);
+  const { url, opciones } = configurarRabbitMQ();
+  const conexion = await amqp.connect(url, opciones);
 
   try {
     const canal = await conexion.createConfirmChannel();

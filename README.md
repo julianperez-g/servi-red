@@ -2,6 +2,8 @@
 
 Plataforma académica para registrar y consultar novedades de servicios públicos domiciliarios. Incluye un portal ciudadano, un panel de operación, indicadores públicos y exportaciones CSV.
 
+El despliegue independiente de la rama `deploy/vercel-integrado` (Vercel + Railway), sus conexiones y los pasos para publicar cambios están documentados en [la guía de despliegue integrado](docs/despliegue-integrado.md).
+
 ## Requisitos
 
 - Node.js y npm.
