@@ -65,23 +65,29 @@ export default function DenunciaAnonimaForm({ onVolver }: { onVolver: () => void
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-900">
       <div className="mx-auto max-w-6xl">
-        <header className="mb-7 flex flex-wrap items-center justify-between gap-4">
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div><p className="text-sm font-bold tracking-widest text-violet-700">SERVI-RED · SIMULADOR</p>
             <h1 className="mt-2 text-3xl font-bold">Denuncia anónima</h1>
             <p className="mt-2 text-sm text-slate-600">Canal privado para informar posibles conexiones fraudulentas. No necesitas una cuenta.</p></div>
           <button type="button" onClick={onVolver} disabled={enviando} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold disabled:opacity-50">← Volver a reportes</button>
         </header>
-        <div className="grid items-start gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm sm:p-8">
-            <div className="mb-6 rounded-2xl bg-violet-700 p-5 text-white"><h2 className="text-xl font-bold">Describe el hecho, no tu identidad</h2><p className="mt-2 text-sm text-violet-100">Tu denuncia entra a una bandeja privada de moderación. No aparecerá en el mapa ni en los datos abiertos.</p></div>
+        <div className="grid items-start gap-8 lg:grid-cols-[430px_1fr]">
+          <section aria-label="Simulador de denuncia en celular" className="mx-auto w-full min-w-0 max-w-[430px] rounded-[36px] border-[7px] border-slate-900 bg-white shadow-xl">
+            <div aria-hidden="true" className="mx-auto mt-3 h-2 w-24 rounded-full bg-slate-900" />
+            <div className="px-5 pb-7 pt-6 sm:px-7">
+            <div className="mb-6 rounded-2xl bg-violet-700 p-5 text-white">
+              <p className="text-xs font-semibold uppercase tracking-widest text-violet-100">Canal anónimo</p>
+              <h2 className="mt-2 text-2xl font-bold">Describe el hecho, no tu identidad</h2>
+              <p className="mt-2 text-sm text-violet-100">Tu denuncia entra a una bandeja privada de moderación. No aparecerá en el mapa ni en los datos abiertos.</p>
+            </div>
             <form onSubmit={enviar} className="space-y-5">
               <fieldset disabled={enviando} className="space-y-5 disabled:opacity-60">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <label className="space-y-2 text-sm font-semibold"><span>Municipio del hecho</span><select className={campo} value={municipioId} onChange={(e) => {
+                <div className="space-y-5">
+                  <label className="block space-y-2 text-sm font-semibold"><span>Municipio del hecho</span><select className={campo} value={municipioId} onChange={(e) => {
                     const id = Number(e.target.value); setMunicipio(id);
                     const m = municipios.find((x) => x.id === id); if (m) setPunto({ latitud: m.lat, longitud: m.lng });
                   }}>{municipios.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}</select></label>
-                  <label className="space-y-2 text-sm font-semibold"><span>Servicio</span><select className={campo} value={servicioId} onChange={(e) => setServicio(Number(e.target.value))}>{servicios.map((s) => <option key={s.id} value={s.id}>{s.icono} {s.nombre}</option>)}</select></label>
+                  <label className="block space-y-2 text-sm font-semibold"><span>Servicio</span><select className={campo} value={servicioId} onChange={(e) => setServicio(Number(e.target.value))}>{servicios.map((s) => <option key={s.id} value={s.id}>{s.icono} {s.nombre}</option>)}</select></label>
                 </div>
                 <label className="block space-y-2 text-sm font-semibold"><span>¿Qué conexión sospechosa observaste?</span>
                   <textarea className={`${campo} min-h-36`} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} minLength={20} maxLength={2000} required placeholder="Ejemplo: Se observa un cable conectado directamente a la red sin pasar por el medidor, junto al poste de la esquina..." />
@@ -120,11 +126,12 @@ export default function DenunciaAnonimaForm({ onVolver }: { onVolver: () => void
               </fieldset>
               {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
               {folio && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="font-bold text-emerald-900">Denuncia recibida · Pendiente de moderación</p><p className="mt-2 break-all text-sm text-emerald-900">Folio: {folio}</p><p className="mt-2 text-xs text-emerald-800">Guarda este folio fuera del navegador si lo necesitas. No se vincula con tu cuenta ni aparece en Mis reportes. No existe consulta pública del contenido.</p></div>}
-              <button type="submit" disabled={enviando} className="w-full rounded-xl bg-violet-700 px-5 py-4 font-bold text-white disabled:opacity-60">{enviando ? "Limpiando y enviando al canal privado..." : "Enviar denuncia sin identificarme"}</button>
+              <button type="submit" disabled={enviando} className="w-full rounded-xl bg-violet-700 px-5 py-4 text-sm font-bold text-white disabled:opacity-60">{enviando ? "Limpiando y enviando al canal privado..." : "Enviar denuncia sin identificarme"}</button>
               <p className="text-center text-xs text-slate-500">Simulación académica. No es un canal de emergencias ni una denuncia oficial ante autoridades.</p>
             </form>
+            </div>
           </section>
-          <aside className="space-y-5">
+          <aside className="min-w-0 space-y-5">
             <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-bold">¿Cómo se protege tu identidad?</h2>
               <ol className="mt-5 space-y-4 text-sm">{[
                 ["1. Sin cuenta", "El formulario no envía tu sesión, correo, teléfono, nombre o documento."],
