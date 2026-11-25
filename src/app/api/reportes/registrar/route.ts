@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validarReporte } from "@/application/validators/validarReporte";
 import { autenticarCiudadano } from "@/lib/authCiudadano";
+import { comprobarCobertura } from "@/infrastructure/reportes/cobertura";
+import { MAX_REPORTE_BYTES } from "@/domain/value_objects/cobertura";
+import { leerJsonLimitado, ErrorSolicitudHTTP } from "@/infrastructure/http/leer-json.mjs";
 import {
   publicarReporte,
   type EventoReporte,
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
     const longitudCuerpo =
       Number(request.headers.get("content-length") || 0);
 
-    if (longitudCuerpo > 10_000) {
+    if (longitudCuerpo > MAX_REPORTE_BYTES) {
       return NextResponse.json(
         {
           status: "error",
@@ -51,26 +54,14 @@ export async function POST(request: NextRequest) {
     let entrada: unknown;
 
     try {
-      const texto = await request.text();
-
-      if (Buffer.byteLength(texto, "utf8") > 10_000) {
-        return NextResponse.json(
-          {
-            status: "error",
-            message: "El reporte supera el tamaño permitido",
-          },
-          { status: 413 }
-        );
-      }
-
-      entrada = JSON.parse(texto);
-    } catch {
+      entrada = await leerJsonLimitado(request, MAX_REPORTE_BYTES);
+    } catch (error) {
       return NextResponse.json(
         {
           status: "error",
-          message: "JSON invalido",
+          message: error instanceof ErrorSolicitudHTTP ? error.message : "JSON invalido",
         },
-        { status: 400 }
+        { status: error instanceof ErrorSolicitudHTTP ? error.status : 400 }
       );
     }
 
@@ -86,6 +77,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const areaAfectadaM2 = await comprobarCobertura(validacion.datos);
     const evento: EventoReporte = {
       eventoId: crypto.randomUUID(),
       tipo: "REPORTE_CREADO",
@@ -104,10 +96,15 @@ export async function POST(request: NextRequest) {
         message: "Reporte recibido para procesamiento",
         reporteId: evento.eventoId,
         estado: "EN_COLA",
+        areaAfectadaM2,
       },
       { status: 202 }
     );
   } catch (error) {
+    if (error instanceof ErrorSolicitudHTTP) return NextResponse.json({ status: "error", message: error.message }, { status: error.status });
+    const codigo = (error as { code?: string })?.code;
+    if (["22023", "XX000"].includes(codigo || "")) return NextResponse.json({ status: "error", message: "El polígono no es válido para calcular su superficie." }, { status: 400 });
+    if (["42703", "42883"].includes(codigo || "")) return NextResponse.json({ status: "error", message: "La migración de cobertura funcional aún no está aplicada en esta base de datos." }, { status: 503 });
     console.error(
       "Error registrando reporte:",
       error instanceof Error

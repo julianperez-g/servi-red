@@ -77,10 +77,13 @@ Los contenedores se publican por separado desde la raíz del repositorio:
 ```bash
 npx @railway/cli link --project 0d093e6b-3cbf-4d03-ba4d-6fa0c20ad798
 npx @railway/cli up services/rabbitmq --path-as-root --service rabbitmq --environment production
-npx @railway/cli up worker --path-as-root --service worker --environment production
+# Worker: configurar primero raíz del repositorio y config worker/railway.toml.
+npx @railway/cli up --service worker --environment production
 ```
 
 El worker utiliza `npm ci` con su propio lockfile. Cambiar variables requiere un nuevo despliegue para que los procesos las carguen. Cambiar `RABBITMQ_DEFAULT_PASS` no cambia un usuario que ya existe en el volumen: rota la contraseña con las herramientas administrativas de RabbitMQ y actualiza los clientes de forma coordinada. No borres el volumen para rotar credenciales.
+
+La ampliación de [cobertura funcional](cobertura-funcional.md) requiere aplicar primero su migración. El worker ahora se construye desde la raíz para incluir `shared/reportes`; su Dockerfile es `worker/Dockerfile` y su configuración es `worker/railway.toml`. No redesplegar ese worker contra una base sin migrar. Preparar estos archivos localmente no aplica migraciones ni publica cambios automáticamente.
 
 ### Canal de denuncias anónimas
 
@@ -92,7 +95,7 @@ El formulario se abre desde `/simulador` sin sesión y la bandeja privada en `/m
 
 La rama está publicada en [GitHub](https://github.com/julianperez-g/servi-red/tree/deploy/vercel-integrado). El intento de conectar el repositorio al nuevo proyecto Vercel fue rechazado por permisos de la integración. Esto no impide los despliegues manuales mediante CLI.
 
-Para habilitar automatización, el propietario del repositorio debe permitir que la GitHub App de Vercel acceda a `julianperez-g/servi-red`. Después conecta **este proyecto nuevo** y selecciona `deploy/vercel-integrado` como Production Branch en Vercel. No cambies la configuración del proyecto original. Railway también requiere autorización de su propia GitHub App si se desean despliegues automáticos de los contenedores; sus directorios raíz serían `services/rabbitmq` y `worker`.
+Para habilitar automatización, el propietario del repositorio debe permitir que la GitHub App de Vercel acceda a `julianperez-g/servi-red`. Después conecta **este proyecto nuevo** y selecciona `deploy/vercel-integrado` como Production Branch en Vercel. No cambies la configuración del proyecto original. Railway también requiere autorización de su propia GitHub App si se desean despliegues automáticos: RabbitMQ usa raíz `services/rabbitmq`; el worker usa la raíz del repositorio y configuración `worker/railway.toml`, para incluir el contrato compartido.
 
 ## Crear credenciales para otro broker
 

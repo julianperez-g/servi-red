@@ -1,0 +1,12 @@
+**
+!worker/
+worker/*
+!worker/index.mjs
+!worker/procesador.mjs
+!worker/package.json
+!worker/package-lock.json
+!shared/
+shared/*
+!shared/reportes/
+shared/reportes/*
+!shared/reportes/cobertura.mjs

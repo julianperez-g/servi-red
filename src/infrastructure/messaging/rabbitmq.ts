@@ -2,6 +2,7 @@
 import "server-only";
 import amqp from "amqplib";
 import { configurarRabbitMQ } from "./rabbitmq-config.mjs";
+import type { AreaAfectada } from "@/domain/value_objects/cobertura";
 
 const QUEUE_NAME =
   process.env.RABBITMQ_QUEUE || "servi-red.reportes";
@@ -19,6 +20,9 @@ export type EventoReporte = {
     severidad: "BAJA" | "MEDIA" | "ALTA";
     latitud: number;
     longitud: number;
+    categoriaIncidente?: string | null;
+    fechaInicioEstimada?: string | null;
+    areaAfectada?: AreaAfectada | null;
   };
 };
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import { supabase } from "@/lib/supabaseClient";
+import { esServicioSaneamiento, formatearArea, nombreCategoria, type AreaAfectada } from "@/domain/value_objects/cobertura";
 
 type Severidad = "BAJA" | "MEDIA" | "ALTA";
 type Estado = "REPORTADO" | "EN_ATENCION" | "RESUELTO";
@@ -29,6 +30,10 @@ type Reporte = {
   latitud: number;
   longitud: number;
   tiene_evidencia: boolean;
+  categoria_incidente: string | null;
+  fecha_inicio_estimada: string | null;
+  area_afectada_m2: number | string | null;
+  area_afectada_geojson: AreaAfectada | null;
 };
 
 type Actuacion = {
@@ -199,6 +204,9 @@ function crearPopup(reportes: Reporte[]): HTMLElement {
       fecha,
       estado
     );
+    const cobertura = document.createElement("p");
+    cobertura.textContent = `${nombreCategoria(reporte.categoria_incidente)} · Inicio estimado: ${reporte.fecha_inicio_estimada ? formatearFecha(reporte.fecha_inicio_estimada) : "Sin dato"} · Área: ${formatearArea(reporte.area_afectada_m2)}`;
+    bloque.appendChild(cobertura);
 
     function crearBoton(
       texto: string,
@@ -744,6 +752,14 @@ export default function MapaReportes() {
 
       const grupos = agruparReportes(visibles);
       const puntos: [number, number][] = [];
+      for (const reporte of visibles) {
+        if (reporte.area_afectada_geojson) {
+          const area = L.geoJSON(reporte.area_afectada_geojson, { style: { color: colores[reporte.severidad], fillOpacity: 0.12, className: "area-afectada" } });
+          area.bindPopup(crearPopup([reporte]));
+          capa.addLayer(area);
+          if (area.getBounds().isValid()) puntos.push([area.getBounds().getSouth(), area.getBounds().getWest()], [area.getBounds().getNorth(), area.getBounds().getEast()]);
+        }
+      }
 
       for (const grupo of grupos) {
         const { lat, lng, reportes: incidentes } = grupo;
@@ -840,6 +856,7 @@ export default function MapaReportes() {
   const reporteSeleccionado = reportes.find(
     (r) => r.id === reporteGestion
   );
+  const saneamientoSeleccionado = esServicioSaneamiento(reporteSeleccionado?.servicio_id);
 
   const puedeReabrir = reporteSeleccionado?.estado === "RESUELTO" &&
     reporteSeleccionado.validacion_restablecimiento === "OBSERVADO";
@@ -1057,6 +1074,7 @@ export default function MapaReportes() {
                   <p className="mt-2 text-sm text-slate-700">
                     {reporte.descripcion}
                   </p>
+                  <p className="mt-2 text-xs text-slate-600">{nombreCategoria(reporte.categoria_incidente)} · Inicio estimado: {reporte.fecha_inicio_estimada ? formatearFecha(reporte.fecha_inicio_estimada) : "Sin dato"} · Área afectada estimada: {formatearArea(reporte.area_afectada_m2)}</p>
 
                   <p className="mt-3 text-xs font-medium text-slate-600">
                     Registrado:{" "}
@@ -1176,15 +1194,19 @@ export default function MapaReportes() {
 
               {reporteSeleccionado.fecha_servicio_reportada && (
                 <p className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
-                  El ciudadano informó que el servicio volvió el{" "}
+                  El ciudadano informó la solución o recuperación del servicio el{" "}
                   {formatearFecha(reporteSeleccionado.fecha_servicio_reportada)}.
                 </p>
               )}
 
+              <p className="mt-3 text-xs text-slate-600">
+                Categoría: {nombreCategoria(reporteSeleccionado.categoria_incidente)} · Inicio estimado: {reporteSeleccionado.fecha_inicio_estimada ? formatearFecha(reporteSeleccionado.fecha_inicio_estimada) : "Sin dato"} · Área estimada: {formatearArea(reporteSeleccionado.area_afectada_m2)}
+              </p>
+
               {reporteSeleccionado.fecha_restablecimiento_operador && (
                 <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
                   <p>
-                    Restablecimiento registrado:{" "}
+                    {saneamientoSeleccionado ? "Solución registrada:" : "Restablecimiento registrado:"}{" "}
                     <strong>{formatearFecha(reporteSeleccionado.fecha_restablecimiento_operador)}</strong>
                   </p>
                   {reporteSeleccionado.acciones_restablecimiento && (
@@ -1281,7 +1303,7 @@ export default function MapaReportes() {
                       htmlFor="fecha-restablecimiento"
                       className="mt-4 block text-sm font-semibold text-slate-700"
                     >
-                      Fecha y hora del restablecimiento
+                       {saneamientoSeleccionado ? "Fecha y hora de solución de la afectación" : "Fecha y hora del restablecimiento"}
                       <input
                         id="fecha-restablecimiento"
                         type="datetime-local"
@@ -1310,7 +1332,7 @@ export default function MapaReportes() {
                       : puedeReabrir
                         ? "Reabrir reporte"
                         : proximoEstado === "RESUELTO"
-                          ? "Registrar restablecimiento"
+                           ? saneamientoSeleccionado ? "Registrar solución" : "Registrar restablecimiento"
                           : `Cambiar a ${nombreEstado(proximoEstado)}`}
                   </button>
                 </>

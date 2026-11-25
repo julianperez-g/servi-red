@@ -17,6 +17,7 @@ type GrupoContinuidad = {
   cortes: number;
   duracion_total_horas: number | string;
   duracion_promedio_horas: number | string | null;
+  aplica_continuidad?: boolean;
 };
 
 type DatosDashboard = {
@@ -166,7 +167,7 @@ function GraficaContinuidad({
                     {etiqueta}
                   </span>
                   <span className="text-xs text-slate-600">
-                    {dato.cortes} cortes · {dato.reportes} reportes
+                    {dato.aplica_continuidad === false ? `${dato.reportes} incidentes · Continuidad: no aplica` : `${dato.cortes} cortes · ${dato.reportes} reportes`}
                   </span>
                 </div>
                 <div className="h-2 overflow-hidden rounded-full bg-slate-100">
@@ -176,11 +177,11 @@ function GraficaContinuidad({
                   />
                 </div>
                 <p className="mt-2 text-xs text-slate-500">
-                  Duración total: {Number(dato.duracion_total_horas).toFixed(1)} h
+                  {dato.aplica_continuidad === false ? "La resolución de incidentes de saneamiento no se presenta como duración de cortes." : <>Duración total: {Number(dato.duracion_total_horas).toFixed(1)} h
                   {" · "}
                   Promedio de cortes resueltos: {duracion == null
                     ? "N/D"
-                    : `${Number(duracion).toFixed(1)} h`}
+                    : `${Number(duracion).toFixed(1)} h`}</>}
                 </p>
               </div>
             );
@@ -236,9 +237,9 @@ function exportarCSV(datos: DatosDashboard) {
         grupo.nombre,
         grupo.codigo_dane ?? "",
         String(grupo.reportes),
-        String(grupo.cortes),
-        String(grupo.duracion_total_horas),
-        String(grupo.duracion_promedio_horas ?? "N/D"),
+        grupo.aplica_continuidad === false ? "No aplica" : String(grupo.cortes),
+        grupo.aplica_continuidad === false ? "No aplica" : String(grupo.duracion_total_horas),
+        grupo.aplica_continuidad === false ? "No aplica" : String(grupo.duracion_promedio_horas ?? "N/D"),
       ]);
     }
   }
@@ -588,7 +589,8 @@ export default function DashboardPublico() {
               <p className="mt-2">
                 La duración se estima desde la fecha de registro hasta el
                 restablecimiento; no equivale a la hora real de inicio de la
-                interrupción, que no está almacenada actualmente.
+                interrupción. El inicio declarado por el ciudadano es estimado y no sustituye esta métrica histórica.
+                La continuidad se limita a agua, energía y gas; alcantarillado y aseo/residuos se contabilizan como incidentes, sin equiparar sus tiempos de resolución a cortes.
               </p>
             </footer>
           </>

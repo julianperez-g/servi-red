@@ -19,8 +19,9 @@ export async function consultarIndicadores(sql, filtros) {
           date_trunc(
             ${agrupacion}, r.fecha_reporte AT TIME ZONE 'America/Bogota'
           )::date::text AS periodo,
-          UPPER(r.tipo_novedad) = 'CORTE' AS es_corte,
-          CASE WHEN UPPER(r.tipo_novedad) = 'CORTE'
+          r.servicio_id IN (1,2,3) AS aplica_continuidad,
+          (r.servicio_id IN (1,2,3) AND UPPER(r.tipo_novedad) = 'CORTE') AS es_corte,
+          CASE WHEN r.servicio_id IN (1,2,3) AND UPPER(r.tipo_novedad) = 'CORTE'
             AND r.fecha_restablecimiento IS NOT NULL
             AND r.fecha_restablecimiento >= r.fecha_reporte
           THEN EXTRACT(EPOCH FROM (
@@ -55,6 +56,7 @@ export async function consultarIndicadores(sql, filtros) {
         FROM base GROUP BY severidad
       ), servicios AS (
         SELECT servicio AS nombre, COUNT(*)::int AS reportes,
+          BOOL_OR(aplica_continuidad) AS aplica_continuidad,
           COUNT(*) FILTER (WHERE es_corte)::int AS cortes,
           ROUND(COALESCE(SUM(duracion_horas), 0), 1) AS duracion_total_horas,
           ROUND(AVG(duracion_horas), 1) AS duracion_promedio_horas

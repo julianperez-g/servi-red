@@ -3,12 +3,13 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+COPY worker/package.json worker/package-lock.json ./
 
 RUN npm ci --omit=dev
 
-COPY index.mjs ./
+COPY worker/index.mjs worker/procesador.mjs ./worker/
+COPY shared/reportes/cobertura.mjs ./shared/reportes/cobertura.mjs
 
 ENV NODE_ENV=production
 
-CMD ["npm", "start"]
+CMD ["node", "worker/index.mjs"]

@@ -1,27 +1,8 @@
-export class ErrorServicioDenuncias extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
+import { ErrorSolicitudHTTP } from "../http/leer-json.mjs";
+export { leerJsonLimitado } from "../http/leer-json.mjs";
 
-/** Lee un cuerpo con límite real, aunque Content-Length falte o sea falso. */
-export async function leerJsonLimitado(request, max = 3 * 1024 * 1024) {
-  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
-    throw new ErrorServicioDenuncias(415, "Se requiere application/json.");
-  }
-  if (Number(request.headers.get("content-length")) > max) throw new ErrorServicioDenuncias(413, "La solicitud supera el tamaño permitido.");
-  if (!request.body) throw new ErrorServicioDenuncias(400, "Solicitud vacía.");
-  const reader = request.body.getReader();
-  const partes = []; let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > max) { await reader.cancel(); throw new ErrorServicioDenuncias(413, "La solicitud supera el tamaño permitido."); }
-      partes.push(value);
-    }
-  } finally { reader.releaseLock(); }
-  try { return JSON.parse(Buffer.concat(partes).toString("utf8")); }
-  catch { throw new ErrorServicioDenuncias(400, "JSON no válido."); }
+export class ErrorServicioDenuncias extends ErrorSolicitudHTTP {
+  constructor(status, message) { super(status, message); }
 }
 
 /**

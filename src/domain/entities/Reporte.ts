@@ -1,6 +1,7 @@
 ﻿import { DomainError } from "../errors/DomainError";
 import { CoordenadasGPS } from "../value_objects/CoordenadasGPS";
 import { EvidenciaFoto } from "../value_objects/EvidenciaFoto";
+import { normalizarCobertura, type AreaAfectada } from "../value_objects/cobertura";
 
 export const SERVICIOS = [
   "AGUA", "ENERGIA", "GAS", "ALCANTARILLADO", "ASEO"
@@ -37,6 +38,9 @@ export interface ReporteProps {
   evidencias?: readonly EvidenciaFoto[];
   estado?: EstadoReporte;
   fechaRestablecimiento?: Date | null;
+  categoriaIncidente?: string | null;
+  fechaInicioEstimada?: Date | null;
+  areaAfectada?: AreaAfectada | null;
 }
 
 export class Reporte {
@@ -49,6 +53,9 @@ export class Reporte {
   readonly ubicacion: CoordenadasGPS;
   readonly severidad: Severidad;
   readonly evidencias: readonly EvidenciaFoto[];
+  readonly categoriaIncidente: string | null;
+  private readonly inicioEstimado: Date | null;
+  private readonly areaEstimada: AreaAfectada | null;
 
   private readonly fechaCreacion: Date;
   private _estado: EstadoReporte;
@@ -125,6 +132,16 @@ export class Reporte {
     this.severidad = props.severidad;
     this.evidencias = Object.freeze([...(props.evidencias ?? [])]);
     this.fechaCreacion = new Date(props.fechaReporte);
+    try {
+      const cobertura = normalizarCobertura({ servicioId: SERVICIOS.indexOf(props.servicio) + 1,
+        tipoNovedad: props.tipoNovedad, categoriaIncidente: props.categoriaIncidente,
+        fechaInicioEstimada: props.fechaInicioEstimada?.toISOString(), areaAfectada: props.areaAfectada,
+        latitud: props.ubicacion.latitud, longitud: props.ubicacion.longitud },
+      { ahora: props.fechaReporte, referencia: props.fechaReporte });
+      this.categoriaIncidente = cobertura.categoriaIncidente;
+      this.inicioEstimado = cobertura.fechaInicioEstimada ? new Date(cobertura.fechaInicioEstimada) : null;
+      this.areaEstimada = cobertura.areaAfectada;
+    } catch (error) { throw new DomainError(error instanceof Error ? error.message : "Cobertura inválida."); }
     this._estado = estado;
     this._fechaRestablecimiento = restablecimiento
       ? new Date(restablecimiento)
@@ -138,6 +155,9 @@ export class Reporte {
   get estado(): EstadoReporte {
     return this._estado;
   }
+
+  get fechaInicioEstimada(): Date | null { return this.inicioEstimado ? new Date(this.inicioEstimado) : null; }
+  get areaAfectada(): AreaAfectada | null { return this.areaEstimada ? structuredClone(this.areaEstimada) : null; }
 
   get fechaRestablecimiento(): Date | null {
     return this._fechaRestablecimiento

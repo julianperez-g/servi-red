@@ -15,6 +15,7 @@ import MisReportesCiudadano from "./MisReportesCiudadano";
 import DenunciaAnonimaForm from "./DenunciaAnonimaForm";
 import MarcoCelular from "./MarcoCelular";
 import { municipios, servicios } from "./catalogos";
+import { CATEGORIAS_INCIDENTE, fechaColombiaAISO, formatearArea, normalizarCobertura, type AreaAfectada } from "@/domain/value_objects/cobertura";
 
 const MapaSeleccionUbicacion = dynamic(
   () => import("./MapaSeleccionUbicacion"),
@@ -39,6 +40,8 @@ type Formulario = {
   severidad: Severidad;
   latitud: number;
   longitud: number;
+  categoriaIncidente: string | null;
+  fechaInicioEstimada: string;
 };
 
 type Evidencia = {
@@ -53,6 +56,7 @@ type Respuesta = {
   message?: string;
   reporteId?: string;
   estado?: string;
+  areaAfectadaM2?: number | null;
 };
 
 const inicial: Formulario = {
@@ -63,6 +67,8 @@ const inicial: Formulario = {
   severidad: "MEDIA",
   latitud: 4.711,
   longitud: -74.0721,
+  categoriaIncidente: null,
+  fechaInicioEstimada: "",
 };
 
 const campo =
@@ -82,6 +88,9 @@ export default function SimuladorCiudadano() {
   const [etapa, setEtapa] = useState("");
   const [respuesta, setRespuesta] = useState<Respuesta | null>(null);
   const [ultimoEnvio, setUltimoEnvio] = useState("");
+  const [areaAfectada, setAreaAfectada] = useState<AreaAfectada | null>(null);
+  const [dibujandoArea, setDibujandoArea] = useState(false);
+  const categorias = CATEGORIAS_INCIDENTE.filter((c) => c.servicioId === form.servicioId);
 
   useEffect(() => {
     return () => {
@@ -115,7 +124,9 @@ export default function SimuladorCiudadano() {
       latitud: m.lat,
       longitud: m.lng,
     }));
+    setAreaAfectada(null);
     setError("");
+    setRespuesta(null);
   }
 
   function seleccionarFoto(e: ChangeEvent<HTMLInputElement>) {
@@ -213,7 +224,7 @@ export default function SimuladorCiudadano() {
 
   async function enviarReporte(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (enviando) return;
+    if (enviando || dibujandoArea) return;
 
     setError("");
     setRespuesta(null);
@@ -231,6 +242,11 @@ export default function SimuladorCiudadano() {
       return;
     }
 
+    let cobertura;
+    try {
+      if (categorias.length && !form.categoriaIncidente) throw new Error("Selecciona una categoría del incidente para este servicio.");
+      cobertura = normalizarCobertura({ ...form, fechaInicioEstimada: form.fechaInicioEstimada ? fechaColombiaAISO(form.fechaInicioEstimada) : null, areaAfectada });
+    } catch (e) { setError(e instanceof Error ? e.message : "Cobertura no válida."); return; }
     const { data: sesion } = await supabase.auth.getSession();
     if (!sesion.session) {
       setError("Inicia sesión o crea una cuenta ciudadana antes de enviar el reporte.");
@@ -257,6 +273,7 @@ export default function SimuladorCiudadano() {
         },
         body: JSON.stringify({
           ...form,
+          ...cobertura,
           descripcion: form.descripcion.trim(),
           ...(evidencia ? { evidencia } : {}),
         }),
@@ -272,7 +289,8 @@ export default function SimuladorCiudadano() {
 
       setRespuesta(resultado);
       setUltimoEnvio(new Date().toLocaleString("es-CO"));
-      setForm((actual) => ({ ...actual, descripcion: "" }));
+      setForm((actual) => ({ ...actual, descripcion: "", fechaInicioEstimada: "" }));
+      setAreaAfectada(null);
       limpiarFoto();
       setEtapa("");
     } catch (err) {
@@ -369,9 +387,12 @@ export default function SimuladorCiudadano() {
                   <select
                     className={campo}
                     value={form.servicioId}
-                    onChange={(e) =>
-                      actualizar("servicioId", Number(e.target.value))
-                    }
+                      onChange={(e) => {
+                        const id = Number(e.target.value);
+                        const categoria = CATEGORIAS_INCIDENTE.find((c) => c.servicioId === id);
+                        setForm((f) => ({ ...f, servicioId: id, categoriaIncidente: categoria?.codigo ?? null, tipoNovedad: categoria ? categoria.tipo as Tipo : "CORTE" }));
+                        setError(""); setRespuesta(null);
+                      }}
                   >
                     {servicios.map((s) => (
                       <option key={s.id} value={s.id}>
@@ -381,7 +402,15 @@ export default function SimuladorCiudadano() {
                   </select>
                 </div>
 
-                <div>
+                {categorias.length > 0 ? <div>
+                  <label className="mb-2 block text-sm font-semibold" htmlFor="categoria-incidente">Categoría del incidente</label>
+                  <select id="categoria-incidente" className={campo} value={form.categoriaIncidente || ""} required onChange={(e) => {
+                    const c = categorias.find((x) => x.codigo === e.target.value);
+                    if (c) setForm((f) => ({ ...f, categoriaIncidente: c.codigo, tipoNovedad: c.tipo as Tipo }));
+                    setError(""); setRespuesta(null);
+                  }}>{categorias.map((c) => <option key={c.codigo} value={c.codigo}>{c.nombre}</option>)}</select>
+                  <p className="mt-2 text-xs text-slate-500">Se gestiona como incidente de saneamiento; no como un corte de energía, agua o gas.</p>
+                </div> : <div>
                   <label className="mb-2 block text-sm font-semibold">
                     Tipo de novedad
                   </label>
@@ -398,7 +427,7 @@ export default function SimuladorCiudadano() {
                       Baja calidad del servicio
                     </option>
                   </select>
-                </div>
+                </div>}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold">
@@ -455,6 +484,10 @@ export default function SimuladorCiudadano() {
                 </div>
 
                 <div className="space-y-4 rounded-2xl bg-slate-50 p-4">
+                  <label className="block text-sm font-semibold" htmlFor="inicio-estimado">Inicio estimado de la afectación (opcional)
+                    <input id="inicio-estimado" type="datetime-local" className={`${campo} mt-2`} value={form.fechaInicioEstimada} onChange={(e) => actualizar("fechaInicioEstimada", e.target.value)} />
+                    <span className="mt-2 block text-xs font-normal text-slate-500">Hora de Colombia (UTC−5). Indica cuándo comenzó, no cuándo lo reportas. Si no sabes, déjalo vacío.</span>
+                  </label>
                   <div>
                     <p className="text-sm font-semibold">
                       📍 Ubicación del reporte
@@ -476,8 +509,12 @@ export default function SimuladorCiudadano() {
                   </button>
 
                   <MapaSeleccionUbicacion
+                    key={form.municipioId}
                     latitud={form.latitud}
                     longitud={form.longitud}
+                    areaAfectada={areaAfectada}
+                    onCambiarArea={setAreaAfectada}
+                    onEstadoDibujo={setDibujandoArea}
                     onCambiarUbicacion={(latitud, longitud) =>
                       setForm((actual) => ({
                         ...actual,
@@ -581,17 +618,18 @@ export default function SimuladorCiudadano() {
                     <p className="mt-1 text-xs text-green-700">
                       Estado inicial: {respuesta.estado}
                     </p>
+                    {respuesta.areaAfectadaM2 != null && <p className="mt-2 text-xs text-green-800">Superficie estimada calculada en servidor: {formatearArea(respuesta.areaAfectadaM2)}.</p>}
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  disabled={enviando}
+                  disabled={enviando || dibujandoArea}
                   className="w-full rounded-xl bg-blue-600 px-5 py-4 text-sm font-bold text-white disabled:opacity-60"
                 >
                   {enviando
                     ? etapa || "Procesando..."
-                    : "Enviar reporte ciudadano"}
+                    : dibujandoArea ? "Termina o borra el área para enviar" : "Enviar reporte ciudadano"}
                 </button>
 
                 <p className="text-center text-xs text-slate-400">

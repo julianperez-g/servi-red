@@ -1,4 +1,6 @@
 
+import { normalizarCobertura, type AreaAfectada } from "@/domain/value_objects/cobertura";
+
 export type EvidenciaReporte = {
   bucket: string;
   ruta: string;
@@ -15,6 +17,9 @@ export type DatosReporte = {
   latitud: number;
   longitud: number;
   evidencia?: EvidenciaReporte;
+  categoriaIncidente?: string | null;
+  fechaInicioEstimada?: string | null;
+  areaAfectada?: AreaAfectada | null;
 };
 
 type ResultadoValidacion =
@@ -119,6 +124,7 @@ export function validarReporte(
     "latitud",
     "longitud",
     "evidencia",
+    "categoriaIncidente", "fechaInicioEstimada", "areaAfectada",
   ];
 
   const desconocidos = Object.keys(d).filter(
@@ -224,6 +230,12 @@ export function validarReporte(
 
   if (evidencia) {
     datos.evidencia = evidencia;
+  }
+
+  try {
+    Object.assign(datos, normalizarCobertura(d));
+  } catch (error) {
+    return { valido: false, error: error instanceof Error ? error.message : "Cobertura no válida." };
   }
 
   return {

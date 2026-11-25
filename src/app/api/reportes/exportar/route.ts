@@ -65,7 +65,8 @@ export async function GET(request: NextRequest) {
           r.fecha_reporte AT TIME ZONE 'UTC',
           'YYYY-MM-DD"T"HH24:MI:SS"Z"'
         ) AS fecha_reporte,
-        NULL::timestamptz AS fecha_inicio,
+        to_char((to_jsonb(r)->>'fecha_inicio_estimada')::timestamptz AT TIME ZONE 'UTC',
+          'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS fecha_inicio,
         m.nombre AS municipio,
         d.nombre AS departamento,
         d.codigo_dane AS departamento_codigo_dane,
@@ -78,7 +79,10 @@ export async function GET(request: NextRequest) {
         s.nombre AS servicio,
         r.severidad::text AS severidad,
         r.estado::text AS estado_reporte,
-        NULL::numeric AS magnitud_area,
+        (to_jsonb(r)->>'area_afectada_m2')::numeric AS magnitud_area,
+        CASE WHEN to_jsonb(r)->>'area_afectada_m2' IS NOT NULL THEN 'm2' END AS unidad_area,
+        CASE WHEN to_jsonb(r)->>'fecha_inicio_estimada' IS NOT NULL THEN 'ESTIMADA_CIUDADANO' END AS origen_fecha_inicio,
+        to_jsonb(r)->>'categoria_incidente' AS categoria_incidente,
         NULL::text AS resultado_validacion,
         NULL::timestamptz AS fecha_respuesta,
         r.descripcion
@@ -102,6 +106,7 @@ export async function GET(request: NextRequest) {
       "departamento_codigo_dane",
       "tipo_novedad", "servicio", "severidad", "estado_reporte",
       "magnitud_area", "resultado_validacion", "fecha_respuesta", "descripcion",
+      "unidad_area", "origen_fecha_inicio", "categoria_incidente",
     ];
     const lineas = [
       columnas.map(escaparCSV).join(";"),

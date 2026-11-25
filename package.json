@@ -13,6 +13,7 @@
     "test:denuncias": "node --test services/denuncias/test/*.test.mjs src/infrastructure/denuncias/*.test.mjs",
     "setup:rabbitmq:production": "node scripts/configure-rabbitmq-production.mjs",
     "test:messaging": "node --test src/infrastructure/messaging/*.test.mjs",
+    "test:cobertura": "node --test shared/reportes/*.test.mjs test/cobertura*.test.mjs",
     "test:indicadores": "node --test services/indicadores/test/*.test.mjs src/infrastructure/indicators/*.test.mjs"
   },
   "dependencies": {

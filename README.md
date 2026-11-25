@@ -55,9 +55,9 @@ El CSV utiliza UTF-8 con BOM y separador punto y coma. Protege las celdas frente
 
 ### Campos solicitados y disponibilidad
 
-El CSV incluye fecha del reporte, municipio, departamento, código DANE del departamento, tipo de novedad, servicio, severidad, estado y descripción. **Fecha de inicio, magnitud del área, resultado de validación y fecha de respuesta se exportan vacíos**: esos datos aún no están implementados en el esquema. No se infieren esos valores a partir de otros datos.
+El CSV incluye fecha del reporte, municipio, departamento, código DANE del departamento, tipo de novedad, servicio, severidad, estado y descripción. La ampliación de cobertura permite exportar **inicio estimado y superficie del polígono en m²**, con origen y unidad explícitos, cuando se haya aplicado su migración y existan esos datos. Los reportes antiguos conservan celdas vacías. Resultado de validación y fecha de primera respuesta siguen sin implementarse en ese CSV; no se infieren.
 
-Para habilitar esos campos se deben definir primero sus tablas, columnas, unidades y relaciones en el esquema de datos, e incorporarlas al proceso de registro y gestión. La magnitud requiere una unidad explícita y la fecha de respuesta requiere acordar qué evento cuenta como primera respuesta.
+Consulta [cobertura funcional](docs/cobertura-funcional.md) para categorías de alcantarillado/aseo, dibujo del área, validaciones, compatibilidad y el orden de activación. La fecha de primera respuesta aún requiere acordar qué evento la representa.
 
 La exportación está pensada para consulta pública y análisis. **No se afirma que el CSV cumpla formatos oficiales o regulatorios**; cualquier interoperabilidad requiere verificar previamente la especificación vigente de la entidad reguladora correspondiente.
 
@@ -67,7 +67,7 @@ El dashboard (`/dashboard`) y `GET /api/dashboard` muestran frecuencia de cortes
 
 La API admite `desde` y `hasta` en formato `YYYY-MM-DD`, `agrupacion=day|month|year` y el filtro opcional `municipio` (ID positivo). Los límites de fecha se interpretan en la zona horaria `America/Bogota`. El selector permite cambiar la agrupación temporal.
 
-La frecuencia cuenta reportes de tipo `CORTE`, incluidos los que siguen abiertos. La duración solo considera cortes con fecha de restablecimiento válida y se calcula desde `fecha_reporte` hasta `fecha_restablecimiento`. El esquema aún no almacena una fecha real de inicio de la interrupción, por lo que esta duración es una **estimación desde el registro del reporte**, no el tiempo real desde que comenzó el corte.
+La frecuencia cuenta reportes de tipo `CORTE` de agua, energía y gas, incluidos los que siguen abiertos. La duración solo considera cortes con fecha de restablecimiento válida y se calcula desde `fecha_reporte` hasta `fecha_restablecimiento`. Es una **estimación desde el registro**, no desde el inicio real. El inicio declarado por el ciudadano es estimado y no reemplaza esta métrica histórica; la resolución de saneamiento no se presenta como continuidad de redes.
 
 ### Microservicio independiente
 
