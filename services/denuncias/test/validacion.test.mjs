@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { anonimizarTexto, validarDenuncia, validarModeracion } from "../src/validacion.mjs";
+import { anonimizarTexto, MAX_FOTO, validarDenuncia, validarModeracion } from "../src/validacion.mjs";
 
 const base = { municipioId: 1, servicioId: 2, descripcion: "Posible conexión irregular junto al poste de la esquina." };
 test("solo persiste datos del hecho; la ubicación es opcional", () => {
@@ -20,6 +20,11 @@ test("valida catálogos, descripción y coordenadas", () => {
 });
 test("no admite nombre de archivo ni base64 corrupto", () => {
   for (const foto of [{ tipo: "image/jpeg", base64: "%%%" }, { tipo: "image/svg+xml", base64: "YQ==" }, { tipo: "image/jpeg", base64: "YQ==", nombre: "Ana.jpg" }]) assert.throws(() => validarDenuncia({ ...base, foto }), { status: 400 });
+});
+test("aplica el límite de bytes incluso si dos tamaños comparten longitud base64", () => {
+  const foto = (size) => ({ tipo: "image/jpeg", base64: Buffer.alloc(size).toString("base64") });
+  assert.equal(validarDenuncia({ ...base, foto: foto(MAX_FOTO) }).foto.bytes.length, MAX_FOTO);
+  assert.throws(() => validarDenuncia({ ...base, foto: foto(MAX_FOTO + 1) }), { status: 400 });
 });
 test("moderación valida transiciones y limpia motivos", () => {
   assert.equal(validarModeracion({ estadoEsperado: "PENDIENTE", estado: "EN_REVISION", motivo: "Revisar conexión sospechosa" }).estado, "EN_REVISION");

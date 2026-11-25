@@ -126,3 +126,13 @@ En el proyecto Vercel `servi-red-plataforma`, configura `DENUNCIAS_SERVICE_URL` 
 Para incluirla, usa un contenedor PostgreSQL **desechable**, accesible solo en localhost, con base `servired_denuncias_test`, y establece esa variable. El fixture se niega a ejecutar contra otro nombre de base o host externo. **No apuntes esa variable al Supabase del proyecto.** Verifica también permisos reales con un login de prueba restringido, aislamiento entre empresas y conflictos de estado.
 
 La verificación en navegador usa cuentas/casos temporales, comprueba que el envío no incluya cookies/tokens/nombre del archivo, inspecciona la fila y foto limpia, inicia sesión como operador y prueba evidencia/moderación; después elimina los fixtures.
+
+### Verificación del despliegue — 25 de noviembre de 2026
+
+- **26 pruebas aprobadas, sin omisiones**, incluyendo fixture PostgreSQL aislado, permisos reales, límites de 2 MiB/16 megapíxeles y foto con EXIF.
+- Compilación local y en Vercel, TypeScript y ESLint de los archivos modificados: correctos. Auditoría del microservicio: sin vulnerabilidades reportadas.
+- Contenedor local `servi-red-denuncias`: saludable en `127.0.0.1:4002`. Servicio Docker en Railway: `/health` responde `200`, rutas protegidas sin clave: `401`.
+- Navegador Chrome real, tanto en desarrollo como en https://servi-red-plataforma.vercel.app: abrir el canal desde el simulador, adjuntar una imagen con EXIF, enviar sin sesión, recibir folio, verificar red sin cookie/token/nombre original y comprobar en SQL la descripción reducida y WebP sin EXIF/ICC/XMP.
+- En ambos entornos: iniciar sesión con un operador creado temporalmente, abrir la bandeja privada, visualizar la evidencia y pasar el caso a revisión, con auditoría del operador. Se eliminaron después los casos, imágenes, auditorías, operadores y usuarios temporales.
+- Vista móvil de 390 px sin desborde horizontal. En producción, texto con campo adicional de identidad rechazado (`400`); moderación e imágenes sin sesión, incluso con cabecera de operador falsificada, rechazadas (`401`); archivos `.env` no accesibles (`404`).
+- `/api/health` y el dashboard existente siguen respondiendo `200`. Las pruebas existentes de mensajería pasaron (4); indicadores: 36 aprobadas y 1 fixture SQL omitido, independiente del fixture de denuncias que sí se ejecutó.

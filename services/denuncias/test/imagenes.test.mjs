@@ -21,3 +21,8 @@ test("rechaza SVG, foto corrupta y tipo MIME falsificado", async () => {
   await assert.rejects(limpiarFoto({ tipo: "image/png", bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"></svg>') }), { status: 400 });
   assert.equal(await limpiarFoto(null), null);
 });
+test("rechaza imágenes que superen el límite de píxeles aunque el archivo sea pequeño", async () => {
+  const bytes = await sharp({ create: { width: 4001, height: 4000, channels: 3, background: "white" } }).jpeg().toBuffer();
+  assert.ok(bytes.length < 2 * 1024 * 1024);
+  await assert.rejects(limpiarFoto({ tipo: "image/jpeg", bytes }), { status: 400 });
+});
