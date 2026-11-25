@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { municipios, servicios } from "./catalogos";
+import MarcoCelular from "./MarcoCelular";
 
 const Mapa = dynamic(() => import("./MapaSeleccionUbicacion"), { ssr: false,
   loading: () => <p className="p-4 text-sm">Cargando mapa del hecho...</p> });
@@ -72,9 +73,7 @@ export default function DenunciaAnonimaForm({ onVolver }: { onVolver: () => void
           <button type="button" onClick={onVolver} disabled={enviando} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold disabled:opacity-50">← Volver a reportes</button>
         </header>
         <div className="grid items-start gap-8 lg:grid-cols-[430px_1fr]">
-          <section aria-label="Simulador de denuncia en celular" className="mx-auto w-full min-w-0 max-w-[430px] rounded-[36px] border-[7px] border-slate-900 bg-white shadow-xl">
-            <div aria-hidden="true" className="mx-auto mt-3 h-2 w-24 rounded-full bg-slate-900" />
-            <div className="px-5 pb-7 pt-6 sm:px-7">
+          <MarcoCelular etiqueta="Simulador de denuncia en celular">
             <div className="mb-6 rounded-2xl bg-violet-700 p-5 text-white">
               <p className="text-xs font-semibold uppercase tracking-widest text-violet-100">Canal anónimo</p>
               <h2 className="mt-2 text-2xl font-bold">Describe el hecho, no tu identidad</h2>
@@ -129,8 +128,7 @@ export default function DenunciaAnonimaForm({ onVolver }: { onVolver: () => void
               <button type="submit" disabled={enviando} className="w-full rounded-xl bg-violet-700 px-5 py-4 text-sm font-bold text-white disabled:opacity-60">{enviando ? "Limpiando y enviando al canal privado..." : "Enviar denuncia sin identificarme"}</button>
               <p className="text-center text-xs text-slate-500">Simulación académica. No es un canal de emergencias ni una denuncia oficial ante autoridades.</p>
             </form>
-            </div>
-          </section>
+          </MarcoCelular>
           <aside className="min-w-0 space-y-5">
             <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-xl font-bold">¿Cómo se protege tu identidad?</h2>
               <ol className="mt-5 space-y-4 text-sm">{[

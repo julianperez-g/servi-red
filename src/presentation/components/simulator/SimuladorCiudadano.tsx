@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import MisReportesCiudadano from "./MisReportesCiudadano";
 import DenunciaAnonimaForm from "./DenunciaAnonimaForm";
+import MarcoCelular from "./MarcoCelular";
 import { municipios, servicios } from "./catalogos";
 
 const MapaSeleccionUbicacion = dynamic(
@@ -328,10 +329,7 @@ export default function SimuladorCiudadano() {
         </header>
 
         <div className="grid items-start gap-8 lg:grid-cols-[430px_1fr]">
-          <section className="mx-auto w-full max-w-[430px] rounded-[36px] border-[7px] border-slate-900 bg-white shadow-xl">
-            <div className="mx-auto mt-3 h-2 w-24 rounded-full bg-slate-900" />
-
-            <div className="px-5 pb-7 pt-6 sm:px-7">
+          <MarcoCelular etiqueta="Simulador de reporte en celular">
               <div className="mb-6 rounded-2xl bg-blue-600 p-5 text-white">
                 <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">
                   Portal ciudadano
@@ -600,8 +598,7 @@ export default function SimuladorCiudadano() {
                   Simulación académica. No reporta emergencias reales.
                 </p>
               </form>
-            </div>
-          </section>
+          </MarcoCelular>
 
           <aside className="space-y-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

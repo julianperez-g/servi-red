@@ -32,6 +32,8 @@ export default function MapaSeleccionUbicacion({
       center: [latitud, longitud],
       zoom: 13,
       zoomControl: true,
+      // Dejar que la rueda desplace el formulario; usar los controles o pinza para zoom.
+      scrollWheelZoom: false,
     });
 
     L.tileLayer(
