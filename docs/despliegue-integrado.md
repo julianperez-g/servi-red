@@ -6,7 +6,7 @@ Este despliegue se mantiene en la rama **`deploy/vercel-integrado`**. No utiliza
 
 | Componente | Proyecto / ubicación |
 |---|---|
-| Web Next.js | [servi-red-plataforma](https://vercel.com/kevinggaitans-projects/servi-red-plataforma) |
+| Web Next.js | https://servi-red-plataforma.vercel.app · [panel Vercel](https://vercel.com/kevinggaitans-projects/servi-red-plataforma) |
 | Indicadores | [servi-red-indicadores](https://vercel.com/kevinggaitans-projects/servi-red-indicadores), https://servi-red-indicadores.vercel.app |
 | RabbitMQ y worker | [servi-red-integrado en Railway](https://railway.com/project/0d093e6b-3cbf-4d03-ba4d-6fa0c20ad798) |
 
@@ -26,6 +26,8 @@ Navegador → Next.js en Vercel → indicadores en Vercel → PostgreSQL (solo l
 En RabbitMQ se monta `/var/lib/rabbitmq` en un volumen persistente y se conserva el nombre de nodo `rabbit@localhost`. Solo se publica el puerto TLS `5671` mediante TCP Proxy. El puerto AMQP `5672` es para el worker por la red privada; no se publica la interfaz de administración.
 
 La CA privada se configura únicamente en el cliente AMQPS; se verifica el certificado y el hostname del broker. No se usa `rejectUnauthorized=false`. El certificado del servidor dura un año: debe renovarse antes de vencer, o sustituirse por un certificado de una CA pública para un dominio propio. La clave privada de la CA queda solo en el archivo local privado, no en Railway ni en Vercel.
+
+El certificado instalado vence el **25 de noviembre de 2027 a las 16:36:36 UTC**.
 
 ## Variables
 
@@ -94,3 +96,17 @@ npm run setup:rabbitmq:production -- --hostname DOMINIO_TCP --port PUERTO_TCP
 ```
 
 Requiere OpenSSL. Genera una CA, un certificado para ese hostname y contraseñas aleatorias en `.env.rabbitmq.production.local`. El script se niega a sobrescribir credenciales existentes; no es un mecanismo de renovación ni de rotación de usuarios de un broker ya iniciado.
+
+## Verificación realizada (25 de noviembre de 2026)
+
+- Compilación de producción, TypeScript y ESLint de los archivos modificados: correctos.
+- Mensajería: 4 pruebas aprobadas. Indicadores: 36 aprobadas y 1 prueba de fixture SQL omitida (requiere base de pruebas aislada).
+- Web pública: `/`, `/simulador`, `/login`, `/mapa`, `/dashboard` y `/api/health` responden `200`; `/ciudadano` redirige a `/simulador`, como define el código.
+- Proxy real de indicadores: `200` con datos; filtros inválidos: `400`.
+- Registro sin sesión: `401`. La ruta local `/api/messaging/test` está deshabilitada en producción (`404`). Un ciudadano autenticado sin rol de operador recibe `403` en la autorización de operador.
+- AMQPS rechaza la conexión si no se confía en la CA privada, y conecta al proporcionar la CA correcta. La cola tiene un consumidor activo (worker).
+- Prueba de integración real: cuenta ciudadana temporal → autenticación Supabase → carga/recuperación de imagen en Storage → registro HTTP `202` → RabbitMQ por TLS → worker → reporte `PROCESADO` en PostgreSQL, con ciudadano/evidencia asociados → consulta de Mis reportes HTTP `200`.
+- Se eliminaron la cuenta, el reporte, sus relaciones y la imagen temporales. No se cambiaron reportes ni usuarios existentes. La cuenta de operador demo no se habilitó en producción; el acceso de operador requiere una cuenta real autorizada.
+- Auditoría de dependencias de ejecución (`npm audit --omit=dev`): sin vulnerabilidades reportadas. El build reportó advertencias en dependencias de desarrollo; no se aplicaron actualizaciones automáticas ajenas al despliegue.
+
+La integración GitHub→Vercel **no está conectada automáticamente**: sigue pendiente autorizar la GitHub App para ese repositorio. La web y los contenedores se publicaron correctamente mediante CLI.
