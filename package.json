@@ -9,6 +9,8 @@
     "lint": "eslint",
     "seed:test-operator": "node scripts/provision-test-operator.mjs",
     "setup:indicadores": "node scripts/configure-indicadores.mjs",
+    "setup:denuncias": "node scripts/configure-denuncias.mjs",
+    "test:denuncias": "node --test services/denuncias/test/*.test.mjs src/infrastructure/denuncias/*.test.mjs",
     "setup:rabbitmq:production": "node scripts/configure-rabbitmq-production.mjs",
     "test:messaging": "node --test src/infrastructure/messaging/*.test.mjs",
     "test:indicadores": "node --test services/indicadores/test/*.test.mjs src/infrastructure/indicators/*.test.mjs"

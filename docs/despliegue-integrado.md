@@ -9,6 +9,7 @@ Este despliegue se mantiene en la rama **`deploy/vercel-integrado`**. No utiliza
 | Web Next.js | https://servi-red-plataforma.vercel.app · [panel Vercel](https://vercel.com/kevinggaitans-projects/servi-red-plataforma) |
 | Indicadores | [servi-red-indicadores](https://vercel.com/kevinggaitans-projects/servi-red-indicadores), https://servi-red-indicadores.vercel.app |
 | RabbitMQ y worker | [servi-red-integrado en Railway](https://railway.com/project/0d093e6b-3cbf-4d03-ba4d-6fa0c20ad798) |
+| Denuncias anónimas | Contenedor `denuncias` en el mismo proyecto Railway, https://denuncias-production-2c3a7d3a.up.railway.app |
 
 Los proyectos de Vercel pertenecen a la cuenta `kevinggaitan`; el proyecto Railway pertenece al workspace de Kevin Garay. Accede con las cuentas que autorizaron las CLI. Los contenedores de Railway tienen consumo facturable y pueden detenerse si se agotan los créditos del plan.
 
@@ -80,6 +81,12 @@ npx @railway/cli up worker --path-as-root --service worker --environment product
 ```
 
 El worker utiliza `npm ci` con su propio lockfile. Cambiar variables requiere un nuevo despliegue para que los procesos las carguen. Cambiar `RABBITMQ_DEFAULT_PASS` no cambia un usuario que ya existe en el volumen: rota la contraseña con las herramientas administrativas de RabbitMQ y actualiza los clientes de forma coordinada. No borres el volumen para rotar credenciales.
+
+### Canal de denuncias anónimas
+
+La web tiene `DENUNCIAS_SERVICE_URL` y `DENUNCIAS_API_KEY` (secreto de servidor). El contenedor `denuncias` solo necesita su `DATABASE_URL` restringida, `DENUNCIAS_API_KEY` y `PORT=4002`; no usa la cola de reportes ni claves de Supabase Auth/Storage. Los secretos de producción se guardan localmente en `.env.denuncias.production.local`, excluido de Git. Publica cambios con `npx @railway/cli up services/denuncias --path-as-root --service denuncias --environment production`, y redepliega la web si cambió su código o configuración.
+
+El formulario se abre desde `/simulador` sin sesión y la bandeja privada en `/mapa/denuncias` requiere operador. Véase [la documentación de privacidad y moderación](../services/denuncias/README.md). El esquema `denuncias_privadas` comparte el Supabase existente, pero no se mezcla con reportes ni datos abiertos.
 
 ## GitHub y despliegues automáticos
 

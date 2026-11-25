@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type Operador = {
@@ -184,6 +185,7 @@ export default function MapaLayout({
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
+            <Link href="/mapa/denuncias" className="rounded-lg bg-violet-700 px-4 py-2 text-sm font-semibold text-white">Moderar denuncias</Link>
             <div className="text-right">
               <p className="text-sm font-semibold">
                 {operador.nombre}

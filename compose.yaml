@@ -71,5 +71,28 @@ services:
       retries: 3
       start_period: 10s
 
+  denuncias:
+    build:
+      context: ./services/denuncias
+      dockerfile: Dockerfile
+    container_name: servi-red-denuncias
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4002:4002"
+    env_file:
+      - .env.denuncias.local
+    environment:
+      PORT: "4002"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4002/health', { signal: AbortSignal.timeout(4000) }).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   rabbitmq_data:

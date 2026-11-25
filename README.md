@@ -4,6 +4,12 @@ Plataforma académica para registrar y consultar novedades de servicios público
 
 El despliegue independiente de la rama `deploy/vercel-integrado` (Vercel + Railway), sus conexiones y los pasos para publicar cambios están documentados en [la guía de despliegue integrado](docs/despliegue-integrado.md).
 
+## Denuncias anónimas de conexiones sospechosas
+
+En `/simulador`, pulsa **Denuncia anónima** para enviar sin cuenta un hecho y una foto opcional. El microservicio Docker limpia datos de contacto/IP del texto y recodifica fotos sin EXIF antes de guardarlas en un esquema privado, sin vincular al remitente. La limpieza no puede garantizar ocultar toda identidad escrita o visible: revisa los avisos del formulario. No se publican denuncias en el mapa, dashboard o exportaciones.
+
+Los operadores autenticados abren **Moderar denuncias** en `/mapa/denuncias`, con permisos por empresa/servicio. Desarrollo: `npm run setup:denuncias` y `docker compose up -d --build denuncias`. Consulta [la guía del microservicio](services/denuncias/README.md) para privacidad, pruebas, configuración y despliegue.
+
 ## Requisitos
 
 - Node.js y npm.

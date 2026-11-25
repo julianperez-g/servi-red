@@ -12,6 +12,8 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import MisReportesCiudadano from "./MisReportesCiudadano";
+import DenunciaAnonimaForm from "./DenunciaAnonimaForm";
+import { municipios, servicios } from "./catalogos";
 
 const MapaSeleccionUbicacion = dynamic(
   () => import("./MapaSeleccionUbicacion"),
@@ -52,20 +54,6 @@ type Respuesta = {
   estado?: string;
 };
 
-const municipios = [
-  { id: 1, nombre: "Bogotá D.C.", lat: 4.711, lng: -74.0721 },
-  { id: 2, nombre: "Medellín", lat: 6.2442, lng: -75.5812 },
-  { id: 3, nombre: "Cali", lat: 3.4516, lng: -76.532 },
-];
-
-const servicios = [
-  { id: 1, nombre: "Agua potable", icono: "💧" },
-  { id: 2, nombre: "Energía eléctrica", icono: "⚡" },
-  { id: 3, nombre: "Gas domiciliario", icono: "🔥" },
-  { id: 4, nombre: "Alcantarillado", icono: "🚰" },
-  { id: 5, nombre: "Aseo y residuos", icono: "♻️" },
-];
-
 const inicial: Formulario = {
   municipioId: 1,
   servicioId: 2,
@@ -82,7 +70,7 @@ const campo =
   "focus:ring-2 focus:ring-blue-100";
 
 export default function SimuladorCiudadano() {
-  const [vista, setVista] = useState<"reporte" | "mis-reportes">("reporte");
+  const [vista, setVista] = useState<"reporte" | "mis-reportes" | "denuncia">("reporte");
   const [form, setForm] = useState<Formulario>(inicial);
   const [foto, setFoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -299,6 +287,9 @@ export default function SimuladorCiudadano() {
   if (vista === "mis-reportes") {
     return <MisReportesCiudadano onVolver={() => setVista("reporte")} />;
   }
+  if (vista === "denuncia") {
+    return <DenunciaAnonimaForm onVolver={() => setVista("reporte")} />;
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8 text-slate-900">
@@ -317,6 +308,9 @@ export default function SimuladorCiudadano() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setVista("denuncia")} className="rounded-xl bg-violet-700 px-4 py-3 text-sm font-bold text-white">
+            Denuncia anónima
+          </button>
           <button
             type="button"
             onClick={() => setVista("mis-reportes")}
