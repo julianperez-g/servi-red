@@ -48,5 +48,28 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  indicadores:
+    build:
+      context: ./services/indicadores
+      dockerfile: Dockerfile
+    container_name: servi-red-indicadores
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4001:4001"
+    env_file:
+      - .env.indicadores.local
+    environment:
+      PORT: "4001"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4001/health', { signal: AbortSignal.timeout(4000) }).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   rabbitmq_data:

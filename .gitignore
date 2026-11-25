@@ -2,6 +2,7 @@
 # Dependencias
 /node_modules/
 /worker/node_modules/
+/services/indicadores/node_modules/
 .pnp
 .pnp.*
 .yarn/*

@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "seed:test-operator": "node scripts/provision-test-operator.mjs"
+    "seed:test-operator": "node scripts/provision-test-operator.mjs",
+    "setup:indicadores": "node scripts/configure-indicadores.mjs",
+    "test:indicadores": "node --test services/indicadores/test/*.test.mjs src/infrastructure/indicators/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

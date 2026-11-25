@@ -11,6 +11,7 @@ type Grupo = {
 
 type GrupoContinuidad = {
   nombre: string;
+  municipio_id?: number;
   codigo_dane?: string | null;
   reportes: number;
   cortes: number;
@@ -159,7 +160,7 @@ function GraficaContinuidad({
             const duracion = dato.duracion_promedio_horas;
 
             return (
-              <div key={`${dato.nombre}-${dato.codigo_dane ?? ""}`}>
+              <div key={`${dato.municipio_id ?? dato.nombre}-${dato.codigo_dane ?? ""}`}>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-semibold text-slate-700">
                     {etiqueta}

@@ -1,0 +1,17 @@
+{
+  "name": "servi-red-indicadores",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "start": "node src/index.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.11.3",
+    "postgres": "^4.1.1"
+  }
+}

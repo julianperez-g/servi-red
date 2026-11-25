@@ -15,7 +15,14 @@ npm install
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000). Para iniciar RabbitMQ y el worker de procesamiento, revisa `compose.yaml` y configura las variables requeridas en `.env.local`.
+Abre [http://localhost:3000](http://localhost:3000). Configura las variables requeridas en `.env.local`. Para preparar el microservicio de indicadores y su cuenta de base de datos de solo lectura:
+
+```bash
+npm run setup:indicadores
+docker compose up -d --build rabbitmq worker indicadores
+```
+
+El setup agrega `INDICADORES_SERVICE_URL` y `INDICADORES_API_KEY` a `.env.local` y genera `.env.indicadores.local` con una conexión de lectura dedicada; ambos archivos son privados y están excluidos de Git. No cambia las contraseñas existentes. Si Next.js ya estaba abierto, reinícialo para cargar las nuevas variables.
 
 ## Datos abiertos y exportación CSV
 
@@ -50,9 +57,42 @@ La exportación está pensada para consulta pública y análisis. **No se afirma
 
 El dashboard (`/dashboard`) y `GET /api/dashboard` muestran frecuencia de cortes y duración total/promedio estimada por servicio, municipio, departamento y periodo. La jerarquía territorial utiliza `municipios.departamento_id`; para departamentos se muestra también `codigo_dane`.
 
-La API admite `desde` y `hasta` en formato `YYYY-MM-DD` y `agrupacion=day|month|year`. Los límites de fecha se interpretan en la zona horaria `America/Bogota`. El selector permite cambiar la agrupación temporal.
+La API admite `desde` y `hasta` en formato `YYYY-MM-DD`, `agrupacion=day|month|year` y el filtro opcional `municipio` (ID positivo). Los límites de fecha se interpretan en la zona horaria `America/Bogota`. El selector permite cambiar la agrupación temporal.
 
 La frecuencia cuenta reportes de tipo `CORTE`, incluidos los que siguen abiertos. La duración solo considera cortes con fecha de restablecimiento válida y se calcula desde `fecha_reporte` hasta `fecha_restablecimiento`. El esquema aún no almacena una fecha real de inicio de la interrupción, por lo que esta duración es una **estimación desde el registro del reporte**, no el tiempo real desde que comenzó el corte.
+
+### Microservicio independiente
+
+Los cálculos residen en `services/indicadores/`. Next.js conserva `GET /api/dashboard` como proxy público: ya no calcula estadísticas ni consulta PostgreSQL en esa ruta. El navegador no recibe la clave del microservicio.
+
+```text
+Dashboard → /api/dashboard (Next.js) → /v1/continuidad (indicadores) → PostgreSQL
+```
+
+- Docker ejecuta `indicadores` en el puerto local `4001`, además de `rabbitmq` y `worker`.
+- `GET /health` comprueba la conexión con PostgreSQL y es el healthcheck del contenedor.
+- `GET /v1/continuidad` requiere `Authorization: Bearer <INDICADORES_API_KEY>`.
+- Conserva `resumen`, `estados`, `severidades`, `servicios`, `municipios`, `departamentos` y `periodos`; añade `continuidad`, que cruza municipio y periodo. Los municipios se agrupan por ID para no mezclar localidades homónimas.
+- Cada petición usa una consulta SQL parametrizada dentro de una transacción de solo lectura. El rol solo puede leer las columnas necesarias de reportes y catálogos.
+- Los cortes se asignan al periodo del reporte; su duración completa se cuenta allí, aunque terminen después del rango. No se deduplican reportes que puedan describir el mismo corte ni se calculan índices regulatorios como SAIDI/SAIFI.
+- Si el servicio no responde, el proxy devuelve `502` o `504`, nunca estadísticas vacías como si todo funcionara. Una configuración ausente devuelve `503` y filtros inválidos `400`.
+
+La migración `supabase/migrations/20261125000000_indicadores_lectura.sql` crea el rol de grupo `servired_indicadores_reader` y políticas RLS exclusivas de ese rol. `npm run setup:indicadores` la aplica de forma idempotente y provisiona `servired_indicadores_local` sin modificar usuarios existentes. En otro entorno, crea una conexión dedicada miembro del rol de lectura; no uses la conexión administradora en el contenedor.
+
+Consulta [la guía del servicio](services/indicadores/README.md) para su despliegue y las pruebas de integración.
+
+### Conectar Vercel
+
+El servicio puede publicarse como un **segundo proyecto de Vercel** con raíz `services/indicadores` (Vercel Functions), o como contenedor en un host accesible por **HTTPS**. Ambos usan el mismo runtime y cálculos. El proyecto del servicio necesita solo `DATABASE_URL` (usuario de lectura) e `INDICADORES_API_KEY`; el contenedor admite además `PORT`. Configura dos variables **de servidor** en el proyecto Next.js principal:
+
+| Variable | Valor |
+|---|---|
+| `INDICADORES_SERVICE_URL` | Origen HTTPS del microservicio, sin ruta, por ejemplo `https://indicadores.tu-dominio.com`. |
+| `INDICADORES_API_KEY` | La misma clave privada que tiene el microservicio. |
+
+Configúralas para los entornos donde se vaya a usar el servicio y vuelve a desplegar Next.js. `localhost`, `127.0.0.1` y el nombre Docker `indicadores` **no son accesibles desde Vercel**. El proxy rechaza URLs locales/HTTP en producción. La URL de ejemplo no es un despliegue real.
+
+Si usas la CLI, inicia sesión con `npx vercel login`, vincula el proyecto Next.js con `npx vercel link`, configura las variables con `npx vercel env add INDICADORES_SERVICE_URL production` y `npx vercel env add INDICADORES_API_KEY production`, y redepliega. Introduce los valores mediante la entrada interactiva; no pongas claves en comandos ni en el repositorio. No publiques ni envíes `.env.local` al contenedor: usa únicamente su configuración dedicada.
 
 ## Restablecimiento y validación ciudadana
 
@@ -82,4 +122,5 @@ Ejecuta `npm run seed:test-operator` una vez y entra en `/login` con el correo a
 npm run dev    # servidor de desarrollo
 npm run lint   # análisis estático
 npm run build  # compilación de producción
+npm run test:indicadores # validación, HTTP y cliente proxy
 ```
