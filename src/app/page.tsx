@@ -94,6 +94,12 @@ export default function HomePage() {
                 Ciudadanos
               </Link>
               <Link
+                href="/simulador"
+                className="hidden rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white sm:block"
+              >
+                Mis reportes
+              </Link>
+              <Link
                 href="/login"
                 className="rounded-lg border border-blue-500/40 bg-blue-600/10 px-4 py-2.5 text-sm font-semibold text-blue-200 transition hover:bg-blue-600/20"
               >

@@ -11,6 +11,7 @@ export type EventoReporte = {
   tipo: "REPORTE_CREADO";
   fechaEvento: string;
   datos: {
+    ciudadanoId: string | null;
     municipioId: number;
     servicioId: number;
     tipoNovedad: "CORTE" | "FALLA" | "BAJA_CALIDAD";

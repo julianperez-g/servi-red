@@ -2,12 +2,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ChangeEvent,
 } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import MisReportesCiudadano from "./MisReportesCiudadano";
 
 const MapaSeleccionUbicacion = dynamic(
   () => import("./MapaSeleccionUbicacion"),
@@ -78,9 +82,11 @@ const campo =
   "focus:ring-2 focus:ring-blue-100";
 
 export default function SimuladorCiudadano() {
+  const [vista, setVista] = useState<"reporte" | "mis-reportes">("reporte");
   const [form, setForm] = useState<Formulario>(inicial);
   const [foto, setFoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [gps, setGps] = useState(false);
   const [error, setError] = useState("");
@@ -89,16 +95,17 @@ export default function SimuladorCiudadano() {
   const [ultimoEnvio, setUltimoEnvio] = useState("");
 
   useEffect(() => {
-    if (!foto) {
-      setPreview(null);
-      return;
-    }
+    return () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    };
+  }, []);
 
-    const url = URL.createObjectURL(foto);
-    setPreview(url);
-
-    return () => URL.revokeObjectURL(url);
-  }, [foto]);
+  function limpiarFoto() {
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = null;
+    setFoto(null);
+    setPreview(null);
+  }
 
   function actualizar<K extends keyof Formulario>(
     clave: K,
@@ -126,7 +133,7 @@ export default function SimuladorCiudadano() {
     const archivo = e.target.files?.[0] ?? null;
 
     if (!archivo) {
-      setFoto(null);
+      limpiarFoto();
       return;
     }
 
@@ -136,18 +143,21 @@ export default function SimuladorCiudadano() {
       )
     ) {
       setError("Solo se permiten JPG, PNG o WebP.");
-      setFoto(null);
+      limpiarFoto();
       e.target.value = "";
       return;
     }
 
     if (archivo.size === 0 || archivo.size > 450 * 1024) {
       setError("La imagen debe pesar máximo 450 KB.");
-      setFoto(null);
+      limpiarFoto();
       e.target.value = "";
       return;
     }
 
+    if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    previewRef.current = URL.createObjectURL(archivo);
+    setPreview(previewRef.current);
     setFoto(archivo);
     setError("");
   }
@@ -232,6 +242,12 @@ export default function SimuladorCiudadano() {
       return;
     }
 
+    const { data: sesion } = await supabase.auth.getSession();
+    if (!sesion.session) {
+      setError("Inicia sesión o crea una cuenta ciudadana antes de enviar el reporte.");
+      return;
+    }
+
     setEnviando(true);
 
     let evidencia: Evidencia | undefined;
@@ -246,7 +262,10 @@ export default function SimuladorCiudadano() {
 
       const response = await fetch("/api/reportes/registrar", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sesion.session.access_token}`,
+        },
         body: JSON.stringify({
           ...form,
           descripcion: form.descripcion.trim(),
@@ -265,7 +284,7 @@ export default function SimuladorCiudadano() {
       setRespuesta(resultado);
       setUltimoEnvio(new Date().toLocaleString("es-CO"));
       setForm((actual) => ({ ...actual, descripcion: "" }));
-      setFoto(null);
+      limpiarFoto();
       setEtapa("");
     } catch (err) {
       setError(
@@ -275,6 +294,10 @@ export default function SimuladorCiudadano() {
     } finally {
       setEnviando(false);
     }
+  }
+
+  if (vista === "mis-reportes") {
+    return <MisReportesCiudadano onVolver={() => setVista("reporte")} />;
   }
 
   return (
@@ -293,12 +316,21 @@ export default function SimuladorCiudadano() {
             </p>
           </div>
 
-          <a
+          <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setVista("mis-reportes")}
+            className="rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-semibold text-blue-800"
+          >
+            Mis reportes / Cuenta
+          </button>
+          <Link
             href="/mapa"
             className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white"
           >
             Ver mapa de reportes ↗
-          </a>
+          </Link>
+          </div>
         </header>
 
         <div className="grid items-start gap-8 lg:grid-cols-[430px_1fr]">

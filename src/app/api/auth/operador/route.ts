@@ -45,6 +45,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    if (
+      process.env.NODE_ENV === "production" &&
+      data.user.app_metadata?.servi_red_test_operator === true
+    ) {
+      return NextResponse.json(
+        { error: "Las cuentas de prueba no están habilitadas en producción." },
+        { status: 403 }
+      );
+    }
+
     const sql = postgres(databaseUrl, { max: 1 });
 
     try {

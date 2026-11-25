@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       tipo: "REPORTE_CREADO",
       fechaEvento: new Date().toISOString(),
       datos: {
+        ciudadanoId: null,
         municipioId: 1,
         servicioId: 1,
         tipoNovedad: "CORTE",

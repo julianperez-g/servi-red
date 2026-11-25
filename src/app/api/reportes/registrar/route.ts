@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { validarReporte } from "@/application/validators/validarReporte";
+import { autenticarCiudadano } from "@/lib/authCiudadano";
 import {
   publicarReporte,
   type EventoReporte,
@@ -10,6 +11,17 @@ export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
+    const ciudadano = await autenticarCiudadano(
+      request.headers.get("authorization")
+    );
+
+    if (!ciudadano) {
+      return NextResponse.json(
+        { status: "error", message: "Inicia sesión para registrar un reporte." },
+        { status: 401 }
+      );
+    }
+
     const contentType =
       request.headers.get("content-type") || "";
 
@@ -78,7 +90,10 @@ export async function POST(request: NextRequest) {
       eventoId: crypto.randomUUID(),
       tipo: "REPORTE_CREADO",
       fechaEvento: new Date().toISOString(),
-      datos: validacion.datos,
+      datos: {
+        ...validacion.datos,
+        ciudadanoId: ciudadano.id,
+      },
     };
 
     await publicarReporte(evento);

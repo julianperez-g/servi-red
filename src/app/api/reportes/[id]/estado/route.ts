@@ -74,10 +74,11 @@ export async function PATCH(
     const datos = body as Record<string, unknown>;
     const nuevoEstado = datos.estado;
     const observacion = datos.observacion;
+    const reabrir = datos.reabrir === true;
 
     if (
-      nuevoEstado !== "EN_ATENCION" &&
-      nuevoEstado !== "RESUELTO"
+      (nuevoEstado !== "EN_ATENCION" && nuevoEstado !== "RESUELTO") ||
+      (reabrir && nuevoEstado !== "EN_ATENCION")
     ) {
       return NextResponse.json(
         { error: "Estado solicitado no permitido" },
@@ -99,12 +100,35 @@ export async function PATCH(
       );
     }
 
+    let fechaRestablecimiento: Date | null = null;
+    if (nuevoEstado === "RESUELTO") {
+      if (typeof datos.fechaRestablecimiento !== "string") {
+        return NextResponse.json(
+          { error: "Indica la fecha y hora del restablecimiento." },
+          { status: 400 }
+        );
+      }
+
+      fechaRestablecimiento = new Date(datos.fechaRestablecimiento);
+      if (
+        !Number.isFinite(fechaRestablecimiento.getTime()) ||
+        fechaRestablecimiento.getTime() > Date.now()
+      ) {
+        return NextResponse.json(
+          { error: "La fecha de restablecimiento debe ser válida y no futura." },
+          { status: 400 }
+        );
+      }
+    }
+
     const resultado = await sqlOperadores.begin(async (tx) => {
       const reportes = await tx`
         SELECT
           r.id,
           r.estado,
-          r.servicio_id
+          r.servicio_id,
+          r.ciudadano_id,
+          r.fecha_reporte
         FROM public.reportes r
         WHERE r.id = ${id}
         FOR UPDATE
@@ -134,6 +158,56 @@ export async function PATCH(
       const estadoAnterior = reporte.estado as Estado;
 
       if (
+        fechaRestablecimiento &&
+        fechaRestablecimiento.getTime() <
+          new Date(reporte.fecha_reporte).getTime()
+      ) {
+        throw new ErrorGestion(
+          400,
+          "El restablecimiento no puede ser anterior al reporte"
+        );
+      }
+
+      if (reabrir) {
+        if (estadoAnterior !== "RESUELTO") {
+          throw new ErrorGestion(409, "Solo se puede reabrir un reporte resuelto");
+        }
+
+        const ultimaRestauracion = await tx`
+          SELECT id, estado_validacion
+          FROM public.restablecimientos
+          WHERE reporte_id = ${id}
+          ORDER BY registrado_en DESC
+          LIMIT 1
+          FOR UPDATE
+        `;
+
+        if (ultimaRestauracion[0]?.estado_validacion !== "OBSERVADO") {
+          throw new ErrorGestion(
+            409,
+            "El ciudadano no ha reportado que siga sin servicio"
+          );
+        }
+
+        const reabierto = await tx`
+          UPDATE public.reportes
+          SET estado = 'EN_ATENCION', fecha_restablecimiento = NULL
+          WHERE id = ${id}
+          RETURNING id, estado, fecha_restablecimiento
+        `;
+
+        await tx`
+          INSERT INTO public.historial_estados_reportes (
+            reporte_id, operador_id, estado_anterior, estado_nuevo, observacion
+          ) VALUES (
+            ${id}, ${operador.id}, 'RESUELTO', 'EN_ATENCION', ${observacion.trim()}
+          )
+        `;
+
+        return { reporte: reabierto[0], restablecimiento: null };
+      }
+
+      if (
         !Object.prototype.hasOwnProperty.call(
           transiciones,
           estadoAnterior
@@ -153,7 +227,7 @@ export async function PATCH(
           fecha_restablecimiento =
             CASE
               WHEN ${nuevoEstado} = 'RESUELTO'
-                THEN GREATEST(NOW(), fecha_reporte)
+                THEN ${fechaRestablecimiento?.toISOString() ?? null}::timestamptz
               ELSE NULL
             END
         WHERE id = ${id}
@@ -180,13 +254,47 @@ export async function PATCH(
         )
       `;
 
-      return actualizados[0];
+      let restablecimiento = null;
+      if (nuevoEstado === "RESUELTO" && fechaRestablecimiento) {
+        const insertados = await tx`
+          INSERT INTO public.restablecimientos (
+            reporte_id,
+            operador_id,
+            fecha_restablecimiento,
+            acciones
+          ) VALUES (
+            ${id},
+            ${operador.id},
+            ${fechaRestablecimiento.toISOString()},
+            ${observacion.trim()}
+          )
+          RETURNING id, fecha_restablecimiento, acciones, estado_validacion
+        `;
+        restablecimiento = insertados[0];
+
+        if (reporte.ciudadano_id) {
+          await tx`
+            INSERT INTO public.notificaciones_ciudadanas (
+              ciudadano_id, reporte_id, restablecimiento_id
+            ) VALUES (
+              ${reporte.ciudadano_id}, ${id}, ${restablecimiento.id}
+            )
+            ON CONFLICT (restablecimiento_id, ciudadano_id) DO NOTHING
+          `;
+        }
+      }
+
+      return {
+        reporte: actualizados[0],
+        restablecimiento,
+      };
     });
 
     return NextResponse.json({
       ok: true,
       mensaje: "Estado actualizado correctamente",
-      reporte: resultado,
+      reporte: resultado.reporte,
+      restablecimiento: resultado.restablecimiento,
     });
   } catch (error) {
     if (error instanceof ErrorGestion) {

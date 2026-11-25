@@ -37,6 +37,12 @@ export async function GET(request: NextRequest) {
         r.fecha_reporte,
         r.fecha_restablecimiento,
         r.creado_en,
+        rest.id AS restablecimiento_id,
+        rest.fecha_restablecimiento AS fecha_restablecimiento_operador,
+        rest.acciones AS acciones_restablecimiento,
+        rest.estado_validacion AS validacion_restablecimiento,
+        rest.respuesta_ciudadano,
+        aviso.fecha_servicio_reportada,
         ST_Y(r.ubicacion::geometry) AS latitud,
         ST_X(r.ubicacion::geometry) AS longitud,
         EXISTS (
@@ -45,6 +51,21 @@ export async function GET(request: NextRequest) {
           WHERE e.reporte_id = r.id
         ) AS tiene_evidencia
       FROM public.reportes r
+      LEFT JOIN LATERAL (
+        SELECT
+          x.id,
+          x.fecha_restablecimiento,
+          x.acciones,
+          x.estado_validacion,
+          x.respuesta_ciudadano
+        FROM public.restablecimientos x
+        WHERE x.reporte_id = r.id
+        ORDER BY x.registrado_en DESC
+        LIMIT 1
+      ) rest ON TRUE
+      LEFT JOIN public.avisos_restablecimiento aviso
+        ON aviso.reporte_id = r.id
+       AND aviso.ciudadano_id = r.ciudadano_id
       WHERE EXISTS (
         SELECT 1
         FROM public.empresa_servicios es

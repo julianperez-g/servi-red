@@ -9,6 +9,15 @@ type Grupo = {
   total: number;
 };
 
+type GrupoContinuidad = {
+  nombre: string;
+  codigo_dane?: string | null;
+  reportes: number;
+  cortes: number;
+  duracion_total_horas: number | string;
+  duracion_promedio_horas: number | string | null;
+};
+
 type DatosDashboard = {
   resumen: {
     total: number;
@@ -16,13 +25,18 @@ type DatosDashboard = {
     en_atencion: number;
     resueltos: number;
     alta_severidad: number;
+    total_cortes: number;
+    cortes_resueltos: number;
+    duracion_total_horas: number | string;
     horas_promedio: string | number | null;
   };
   estados: Grupo[];
   severidades: Grupo[];
-  servicios: Grupo[];
-  municipios: Grupo[];
-  evolucion: Grupo[];
+  servicios: GrupoContinuidad[];
+  municipios: GrupoContinuidad[];
+  departamentos: GrupoContinuidad[];
+  periodos: GrupoContinuidad[];
+  agrupacion: "day" | "month" | "year";
   actualizado_en: string;
 };
 
@@ -115,10 +129,72 @@ function GraficaBarras({
   );
 }
 
+function GraficaContinuidad({
+  titulo,
+  subtitulo,
+  datos,
+  color = "bg-blue-600",
+}: {
+  titulo: string;
+  subtitulo: string;
+  datos: GrupoContinuidad[];
+  color?: string;
+}) {
+  const maximo = Math.max(1, ...datos.map((dato) => dato.cortes));
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 className="text-lg font-bold text-slate-900">{titulo}</h2>
+      <p className="mb-6 mt-1 text-sm text-slate-500">{subtitulo}</p>
+      {datos.length === 0 ? (
+        <p className="py-8 text-center text-sm text-slate-400">
+          No hay información disponible para este periodo.
+        </p>
+      ) : (
+        <div className="space-y-5">
+          {datos.map((dato) => {
+            const etiqueta = dato.codigo_dane
+              ? `${dato.nombre} · DANE ${dato.codigo_dane}`
+              : dato.nombre;
+            const duracion = dato.duracion_promedio_horas;
+
+            return (
+              <div key={`${dato.nombre}-${dato.codigo_dane ?? ""}`}>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-semibold text-slate-700">
+                    {etiqueta}
+                  </span>
+                  <span className="text-xs text-slate-600">
+                    {dato.cortes} cortes · {dato.reportes} reportes
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className={`h-full rounded-full ${color}`}
+                    style={{ width: `${(dato.cortes / maximo) * 100}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Duración total: {Number(dato.duracion_total_horas).toFixed(1)} h
+                  {" · "}
+                  Promedio de cortes resueltos: {duracion == null
+                    ? "N/D"
+                    : `${Number(duracion).toFixed(1)} h`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function exportarCSV(datos: DatosDashboard) {
   const filas: string[][] = [
-    ["SERVI-RED - Estadísticas públicas"],
+    ["SERVI-RED - Indicadores de continuidad"],
     ["Fecha de actualización", datos.actualizado_en],
+    ["Agrupación temporal", datos.agrupacion],
     [],
     ["Indicador", "Valor"],
     ["Total de reportes", String(datos.resumen.total)],
@@ -126,27 +202,52 @@ function exportarCSV(datos: DatosDashboard) {
     ["En atención", String(datos.resumen.en_atencion)],
     ["Resueltos", String(datos.resumen.resueltos)],
     ["Alta severidad", String(datos.resumen.alta_severidad)],
+    ["Cortes reportados", String(datos.resumen.total_cortes)],
+    ["Cortes resueltos", String(datos.resumen.cortes_resueltos)],
+    ["Duración total estimada (horas)", String(datos.resumen.duracion_total_horas)],
     [
-      "Duración promedio (horas)",
+      "Duración promedio estimada (horas)",
       String(datos.resumen.horas_promedio ?? "N/D"),
     ],
   ];
 
-  const secciones: [string, Grupo[]][] = [
-    ["Estados", datos.estados],
-    ["Severidades", datos.severidades],
-    ["Servicios", datos.servicios],
-    ["Municipios", datos.municipios],
-    ["Evolución últimos 30 días", datos.evolucion],
+  const secciones: [string, GrupoContinuidad[]][] = [
+    ["Continuidad por servicio", datos.servicios],
+    ["Continuidad por municipio", datos.municipios],
+    ["Continuidad por departamento", datos.departamentos],
+    ["Continuidad por periodo", datos.periodos],
   ];
 
   for (const [titulo, grupos] of secciones) {
     filas.push([]);
-    filas.push([titulo, "Cantidad"]);
+    filas.push([titulo]);
+    filas.push([
+      "Grupo",
+      "Código DANE",
+      "Reportes",
+      "Cortes",
+      "Duración total estimada (horas)",
+      "Duración promedio de cortes resueltos (horas)",
+    ]);
 
     for (const grupo of grupos) {
-      filas.push([grupo.nombre, String(grupo.total)]);
+      filas.push([
+        grupo.nombre,
+        grupo.codigo_dane ?? "",
+        String(grupo.reportes),
+        String(grupo.cortes),
+        String(grupo.duracion_total_horas),
+        String(grupo.duracion_promedio_horas ?? "N/D"),
+      ]);
     }
+  }
+
+  for (const [titulo, grupos] of [
+    ["Estados", datos.estados],
+    ["Severidades", datos.severidades],
+  ] as [string, Grupo[]][]) {
+    filas.push([], [titulo, "Cantidad"]);
+    for (const grupo of grupos) filas.push([grupo.nombre, String(grupo.total)]);
   }
 
   const escapar = (valor: string) => {
@@ -175,13 +276,16 @@ export default function DashboardPublico() {
   const [datos, setDatos] = useState<DatosDashboard | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
+  const [agrupacion, setAgrupacion] = useState<"day" | "month" | "year">("day");
 
   const cargarDatos = useCallback(async () => {
-    setCargando(true);
-    setError("");
-
     try {
-      const respuesta = await fetch("/api/dashboard", {
+      const parametros = new URLSearchParams({ agrupacion });
+      if (desde) parametros.set("desde", desde);
+      if (hasta) parametros.set("hasta", hasta);
+      const respuesta = await fetch(`/api/dashboard?${parametros.toString()}`, {
         cache: "no-store",
       });
 
@@ -200,13 +304,23 @@ export default function DashboardPublico() {
     } finally {
       setCargando(false);
     }
-  }, []);
+  }, [desde, hasta, agrupacion]);
 
   useEffect(() => {
-    void cargarDatos();
+    const temporizador = window.setTimeout(() => {
+      void cargarDatos();
+    }, 0);
+
+    return () => window.clearTimeout(temporizador);
   }, [cargarDatos]);
 
   const promedio = datos?.resumen.horas_promedio;
+  const parametrosExportacion = new URLSearchParams();
+  if (desde) parametrosExportacion.set("desde", desde);
+  if (hasta) parametrosExportacion.set("hasta", hasta);
+  const urlExportacion = `/api/reportes/exportar${
+    parametrosExportacion.size ? `?${parametrosExportacion.toString()}` : ""
+  }`;
 
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
@@ -250,14 +364,63 @@ export default function DashboardPublico() {
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                 Consulta indicadores agregados de los reportes
                 ciudadanos registrados en SERVI-RED.
-                La información se presenta con fines
-                académicos y demostrativos.
+                La información se presenta con fines académicos y
+                demostrativos. El CSV de reportes permite filtrar por fecha;
+                no representa un formato regulatorio oficial.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-xs font-medium text-slate-300">
+                Desde
+                <input
+                  type="date"
+                  value={desde}
+                  onChange={(event) => {
+                    setDesde(event.target.value);
+                    setCargando(true);
+                    setError("");
+                  }}
+                  className="mt-1 block rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-300">
+                Hasta
+                <input
+                  type="date"
+                  value={hasta}
+                  onChange={(event) => {
+                    setHasta(event.target.value);
+                    setCargando(true);
+                    setError("");
+                  }}
+                  className="mt-1 block rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                />
+              </label>
+              <label className="text-xs font-medium text-slate-300">
+                Agrupar por
+                <select
+                  value={agrupacion}
+                  onChange={(event) => {
+                    setAgrupacion(
+                      event.target.value as "day" | "month" | "year"
+                    );
+                    setCargando(true);
+                    setError("");
+                  }}
+                  className="mt-1 block rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white"
+                >
+                  <option value="day">Día</option>
+                  <option value="month">Mes</option>
+                  <option value="year">Año</option>
+                </select>
+              </label>
               <button
-                onClick={() => void cargarDatos()}
+                onClick={() => {
+                  setCargando(true);
+                  setError("");
+                  void cargarDatos();
+                }}
                 disabled={cargando}
                 className="rounded-lg border border-slate-600 px-5 py-3 text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
               >
@@ -269,8 +432,14 @@ export default function DashboardPublico() {
                 disabled={!datos || cargando}
                 className="rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
               >
-                Descargar CSV
+                Descargar indicadores CSV
               </button>
+              <a
+                href={urlExportacion}
+                className="rounded-lg border border-blue-400 px-5 py-3 text-sm font-semibold text-blue-200 hover:bg-blue-950"
+              >
+                Descargar reportes CSV
+              </a>
             </div>
           </div>
         </section>
@@ -291,7 +460,7 @@ export default function DashboardPublico() {
               <Tarjeta
                 titulo="Reportes registrados"
                 valor={datos.resumen.total}
-                detalle="Total histórico"
+                detalle="En el rango seleccionado"
               />
 
               <Tarjeta
@@ -323,28 +492,56 @@ export default function DashboardPublico() {
               />
 
               <Tarjeta
-                titulo="Duración promedio"
+                titulo="Cortes reportados"
+                valor={datos.resumen.total_cortes}
+                detalle="Tipo de novedad: corte"
+                color="text-amber-600"
+              />
+
+              <Tarjeta
+                titulo="Cortes resueltos"
+                valor={datos.resumen.cortes_resueltos}
+                detalle="Con fecha de restablecimiento válida"
+                color="text-green-600"
+              />
+
+              <Tarjeta
+                titulo="Duración total estimada"
+                valor={`${Number(datos.resumen.duracion_total_horas).toFixed(1)} h`}
+                detalle="Desde el registro hasta el restablecimiento"
+                color="text-blue-700"
+              />
+
+              <Tarjeta
+                titulo="Duración promedio estimada"
                 valor={
                   promedio !== null && promedio !== undefined
                     ? `${Number(promedio).toFixed(1)} h`
                     : "N/D"
                 }
-                detalle="Entre reporte y restablecimiento"
+                detalle="Cortes resueltos; desde registro hasta restablecimiento"
               />
             </section>
 
             <section className="grid gap-6 lg:grid-cols-2">
-              <GraficaBarras
-                titulo="Reportes por servicio"
-                subtitulo="Distribución por tipo de servicio público"
+              <GraficaContinuidad
+                titulo="Continuidad por servicio"
+                subtitulo="Frecuencia de cortes y duración estimada por servicio"
                 datos={datos.servicios}
               />
 
-              <GraficaBarras
-                titulo="Reportes por municipio"
-                subtitulo="Comparación territorial"
-                datos={datos.municipios}
+              <GraficaContinuidad
+                titulo="Continuidad por departamento"
+                subtitulo="Frecuencia de cortes agrupada por departamento (código DANE)"
+                datos={datos.departamentos}
                 color="bg-indigo-600"
+              />
+
+              <GraficaContinuidad
+                titulo="Continuidad por municipio"
+                subtitulo="Frecuencia de cortes y duración estimada por municipio"
+                datos={datos.municipios}
+                color="bg-cyan-600"
               />
 
               <GraficaBarras
@@ -362,10 +559,12 @@ export default function DashboardPublico() {
               />
 
               <div className="lg:col-span-2">
-                <GraficaBarras
-                  titulo="Evolución de reportes"
-                  subtitulo="Reportes diarios registrados durante los últimos 30 días"
-                  datos={datos.evolucion}
+                <GraficaContinuidad
+                  titulo="Continuidad por periodo"
+                  subtitulo={`Reportes, cortes y duración agrupados por ${
+                    agrupacion === "day" ? "día" : agrupacion === "month" ? "mes" : "año"
+                  } en el rango seleccionado`}
+                  datos={datos.periodos}
                   color="bg-cyan-600"
                 />
               </div>
@@ -384,6 +583,11 @@ export default function DashboardPublico() {
                 SERVI-RED · Proyecto académico.
                 Los datos no sustituyen información oficial
                 de empresas prestadoras o entidades reguladoras.
+              </p>
+              <p className="mt-2">
+                La duración se estima desde la fecha de registro hasta el
+                restablecimiento; no equivale a la hora real de inicio de la
+                interrupción, que no está almacenada actualmente.
               </p>
             </footer>
           </>

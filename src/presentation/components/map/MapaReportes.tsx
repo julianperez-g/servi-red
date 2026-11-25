@@ -1,7 +1,8 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import "leaflet/dist/leaflet.css";
 import type { Map as LeafletMap, LayerGroup } from "leaflet";
 import { supabase } from "@/lib/supabaseClient";
@@ -18,6 +19,13 @@ type Reporte = {
   severidad: Severidad;
   estado: Estado;
   fecha_reporte: string;
+  fecha_restablecimiento: string | null;
+  restablecimiento_id: string | null;
+  fecha_restablecimiento_operador: string | null;
+  acciones_restablecimiento: string | null;
+  validacion_restablecimiento: "PENDIENTE" | "CONFIRMADO" | "OBSERVADO" | null;
+  respuesta_ciudadano: string | null;
+  fecha_servicio_reportada: string | null;
   latitud: number;
   longitud: number;
   tiene_evidencia: boolean;
@@ -269,6 +277,7 @@ export default function MapaReportes() {
     useState<string | null>(null);
 
   const [observacion, setObservacion] = useState("");
+  const [fechaRestablecimiento, setFechaRestablecimiento] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [errorGestion, setErrorGestion] = useState("");
   const [mensajeGestion, setMensajeGestion] = useState("");
@@ -278,11 +287,13 @@ export default function MapaReportes() {
     useState(false);
 
   const cargarReportes = useCallback(
-    async (inicial = false) => {
-      if (inicial) {
-        setCargando(true);
-      } else {
-        setActualizando(true);
+    async (inicial = false, silencioso = false) => {
+      if (!silencioso) {
+        if (inicial) {
+          setCargando(true);
+        } else {
+          setActualizando(true);
+        }
       }
 
       try {
@@ -314,15 +325,19 @@ export default function MapaReportes() {
         setReportes(datos.reportes);
         setError("");
       } catch (err) {
-        setReportes([]);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Error consultando reportes"
-        );
+        if (!silencioso) {
+          setReportes([]);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Error consultando reportes"
+          );
+        }
       } finally {
-        setCargando(false);
-        setActualizando(false);
+        if (!silencioso) {
+          setCargando(false);
+          setActualizando(false);
+        }
       }
     },
     []
@@ -377,6 +392,7 @@ export default function MapaReportes() {
     (reporteId: string) => {
       setReporteGestion(reporteId);
       setObservacion("");
+      setFechaRestablecimiento("");
       setErrorGestion("");
       setMensajeGestion("");
       setHistorial([]);
@@ -398,7 +414,9 @@ export default function MapaReportes() {
       return;
     }
 
-    const proximo = siguienteEstado(reporte.estado);
+    const reabrir = reporte.estado === "RESUELTO" &&
+      reporte.validacion_restablecimiento === "OBSERVADO";
+    const proximo = reabrir ? "EN_ATENCION" : siguienteEstado(reporte.estado);
 
     if (!proximo) {
       setErrorGestion(
@@ -414,6 +432,20 @@ export default function MapaReportes() {
         "La observación debe tener entre 5 y 2000 caracteres"
       );
       return;
+    }
+
+    let fechaRestablecimientoIso: string | undefined;
+    if (proximo === "RESUELTO") {
+      if (!fechaRestablecimiento) {
+        setErrorGestion("Indica la fecha y hora del restablecimiento.");
+        return;
+      }
+      const parseada = new Date(fechaRestablecimiento);
+      if (!Number.isFinite(parseada.getTime())) {
+        setErrorGestion("La fecha y hora del restablecimiento no es válida.");
+        return;
+      }
+      fechaRestablecimientoIso = parseada.toISOString();
     }
 
     setGuardando(true);
@@ -434,6 +466,11 @@ export default function MapaReportes() {
           body: JSON.stringify({
             estado: proximo,
             observacion: texto,
+            ...(reabrir
+              ? { reabrir: true }
+              : fechaRestablecimientoIso
+                ? { fechaRestablecimiento: fechaRestablecimientoIso }
+                : {}),
           }),
         }
       );
@@ -449,14 +486,28 @@ export default function MapaReportes() {
       setReportes((anteriores) =>
         anteriores.map((r) =>
           r.id === reporteGestion
-            ? { ...r, estado: datos.reporte.estado }
+            ? {
+                ...r,
+                estado: datos.reporte.estado,
+                fecha_restablecimiento: datos.reporte.fecha_restablecimiento,
+                fecha_restablecimiento_operador:
+                  datos.restablecimiento?.fecha_restablecimiento ?? null,
+                acciones_restablecimiento:
+                  datos.restablecimiento?.acciones ?? null,
+                restablecimiento_id: datos.restablecimiento?.id ?? null,
+                validacion_restablecimiento:
+                  datos.restablecimiento?.estado_validacion ?? null,
+              }
             : r
         )
       );
 
       setObservacion("");
+      setFechaRestablecimiento("");
       setMensajeGestion(
-        `Incidente actualizado a ${nombreEstado(proximo)}`
+        reabrir
+          ? "Incidente reabierto para nueva atención"
+          : `Incidente actualizado a ${nombreEstado(proximo)}`
       );
 
       await cargarHistorial(reporteGestion);
@@ -473,7 +524,17 @@ export default function MapaReportes() {
   };
 
   useEffect(() => {
-    void cargarReportes(true);
+    const temporizador = window.setTimeout(() => {
+      void cargarReportes(true);
+    }, 0);
+    return () => window.clearTimeout(temporizador);
+  }, [cargarReportes]);
+
+  useEffect(() => {
+    const intervalo = window.setInterval(() => {
+      void cargarReportes(false, true);
+    }, 30_000);
+    return () => window.clearInterval(intervalo);
   }, [cargarReportes]);
 
   useEffect(() => {
@@ -645,10 +706,11 @@ export default function MapaReportes() {
     };
   }, []);
 
-  const visibles = reportes.filter(
-    (r) =>
-      filtro === "TODAS" ||
-      r.severidad === filtro
+  const visibles = useMemo(
+    () => reportes.filter(
+      (r) => filtro === "TODAS" || r.severidad === filtro
+    ),
+    [reportes, filtro]
   );
 
   useEffect(() => {
@@ -767,7 +829,7 @@ export default function MapaReportes() {
     return () => {
       cancelado = true;
     };
-  }, [mapaListo, reportes, filtro]);
+  }, [mapaListo, reportes, filtro, visibles]);
 
   const grupos = agruparReportes(visibles);
 
@@ -779,8 +841,12 @@ export default function MapaReportes() {
     (r) => r.id === reporteGestion
   );
 
+  const puedeReabrir = reporteSeleccionado?.estado === "RESUELTO" &&
+    reporteSeleccionado.validacion_restablecimiento === "OBSERVADO";
   const proximoEstado = reporteSeleccionado
-    ? siguienteEstado(reporteSeleccionado.estado)
+    ? puedeReabrir
+      ? "EN_ATENCION"
+      : siguienteEstado(reporteSeleccionado.estado)
     : null;
 
   return (
@@ -803,19 +869,25 @@ export default function MapaReportes() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <a
+            <Link
               href="/"
               className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
             >
               Inicio
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/simulador"
               className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
             >
               Simulador ciudadano
-            </a>
+            </Link>
+            <Link
+              href="/simulador"
+              className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-800"
+            >
+              Mis reportes
+            </Link>
 
             <button
               type="button"
@@ -830,7 +902,7 @@ export default function MapaReportes() {
           </div>
         </header>
 
-        <section className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <section className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-7">
           <Tarjeta
             titulo="Total de reportes"
             valor={reportes.length}
@@ -862,6 +934,14 @@ export default function MapaReportes() {
           <Tarjeta
             titulo="Con fotografía"
             valor={totalFotos}
+          />
+          <Tarjeta
+            titulo="Pendientes de confirmación"
+            valor={reportes.filter((r) => r.validacion_restablecimiento === "PENDIENTE").length}
+          />
+          <Tarjeta
+            titulo="Ciudadano sigue sin servicio"
+            valor={reportes.filter((r) => r.validacion_restablecimiento === "OBSERVADO").length}
           />
         </section>
 
@@ -1093,6 +1173,45 @@ export default function MapaReportes() {
                   reporteSeleccionado.fecha_reporte
                 )}
               </p>
+
+              {reporteSeleccionado.fecha_servicio_reportada && (
+                <p className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+                  El ciudadano informó que el servicio volvió el{" "}
+                  {formatearFecha(reporteSeleccionado.fecha_servicio_reportada)}.
+                </p>
+              )}
+
+              {reporteSeleccionado.fecha_restablecimiento_operador && (
+                <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">
+                  <p>
+                    Restablecimiento registrado:{" "}
+                    <strong>{formatearFecha(reporteSeleccionado.fecha_restablecimiento_operador)}</strong>
+                  </p>
+                  {reporteSeleccionado.acciones_restablecimiento && (
+                    <p className="mt-1">
+                      Acciones: {reporteSeleccionado.acciones_restablecimiento}
+                    </p>
+                  )}
+                  {reporteSeleccionado.validacion_restablecimiento && (
+                    <p className="mt-1 font-semibold">
+                      Validación ciudadana: {reporteSeleccionado.validacion_restablecimiento}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs">
+                    Duración estimada desde el reporte: {Math.max(
+                      0,
+                      (new Date(reporteSeleccionado.fecha_restablecimiento_operador).getTime() -
+                        new Date(reporteSeleccionado.fecha_reporte).getTime()) / 3_600_000
+                    ).toFixed(1)} horas.
+                  </p>
+                </div>
+              )}
+
+              {reporteSeleccionado.validacion_restablecimiento === "OBSERVADO" && (
+                <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-semibold text-red-800">
+                  El ciudadano indicó que sigue sin servicio. Reabre el caso para continuar la atención.
+                </p>
+              )}
             </div>
 
             {mensajeGestion && (
@@ -1121,7 +1240,7 @@ export default function MapaReportes() {
               {proximoEstado ? (
                 <>
                   <p className="mt-2 text-sm text-slate-600">
-                    Próximo estado permitido:{" "}
+                    {puedeReabrir ? "Acción requerida:" : "Próximo estado permitido:"}{" "}
                     <strong>
                       {nombreEstado(proximoEstado)}
                     </strong>
@@ -1131,7 +1250,11 @@ export default function MapaReportes() {
                     htmlFor="observacion"
                     className="mt-4 block text-sm font-semibold text-slate-700"
                   >
-                    Observación del operador
+                    {proximoEstado === "RESUELTO"
+                      ? "Acciones realizadas por el operador"
+                      : puedeReabrir
+                        ? "Motivo de reapertura"
+                        : "Observación del operador"}
                   </label>
 
                   <textarea
@@ -1142,7 +1265,9 @@ export default function MapaReportes() {
                     }
                     rows={4}
                     maxLength={2000}
-                    placeholder="Describe la actuación realizada o la solución aplicada..."
+                    placeholder={proximoEstado === "RESUELTO"
+                      ? "Describe las acciones realizadas para restablecer el servicio..."
+                      : "Describe la actuación realizada..."}
                     className="mt-2 w-full rounded-lg border border-slate-300 p-3 text-sm text-slate-900 outline-none focus:border-blue-500"
                   />
 
@@ -1151,6 +1276,23 @@ export default function MapaReportes() {
                     Mínimo 5.
                   </p>
 
+                  {proximoEstado === "RESUELTO" && (
+                    <label
+                      htmlFor="fecha-restablecimiento"
+                      className="mt-4 block text-sm font-semibold text-slate-700"
+                    >
+                      Fecha y hora del restablecimiento
+                      <input
+                        id="fecha-restablecimiento"
+                        type="datetime-local"
+                        required
+                        value={fechaRestablecimiento}
+                        onChange={(event) => setFechaRestablecimiento(event.target.value)}
+                        className="mt-2 block w-full rounded-lg border border-slate-300 p-3 text-sm font-normal text-slate-900"
+                      />
+                    </label>
+                  )}
+
                   <button
                     type="button"
                     onClick={() =>
@@ -1158,15 +1300,18 @@ export default function MapaReportes() {
                     }
                     disabled={
                       guardando ||
-                      observacion.trim().length < 5
+                      observacion.trim().length < 5 ||
+                      (proximoEstado === "RESUELTO" && !fechaRestablecimiento)
                     }
                     className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white disabled:opacity-50"
                   >
                     {guardando
                       ? "Guardando actuación..."
-                      : `Cambiar a ${nombreEstado(
-                          proximoEstado
-                        )}`}
+                      : puedeReabrir
+                        ? "Reabrir reporte"
+                        : proximoEstado === "RESUELTO"
+                          ? "Registrar restablecimiento"
+                          : `Cambiar a ${nombreEstado(proximoEstado)}`}
                   </button>
                 </>
               ) : (

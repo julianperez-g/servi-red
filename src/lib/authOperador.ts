@@ -46,6 +46,12 @@ export async function autenticarOperador(
   const { data, error } = await authClient.auth.getUser(token);
 
   if (error || !data.user) return null;
+  if (
+    process.env.NODE_ENV === "production" &&
+    data.user.app_metadata?.servi_red_test_operator === true
+  ) {
+    return null;
+  }
 
   const operadores = await sqlOperadores`
     SELECT

@@ -97,8 +97,18 @@ function validarEvento(evento) {
     throw new Error("Reporte no cumple validaciones");
   }
 
+  if (
+    d.ciudadanoId !== undefined &&
+    d.ciudadanoId !== null &&
+    (typeof d.ciudadanoId !== "string" ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(d.ciudadanoId))
+  ) {
+    throw new Error("ID de ciudadano invalido");
+  }
+
   return {
     ...d,
+    ciudadanoId: d.ciudadanoId ?? null,
     evidencia: validarEvidencia(d.evidencia),
   };
 }
@@ -108,6 +118,7 @@ async function guardarReporte(evento, d) {
     const insertados = await tx`
       INSERT INTO public.reportes (
         id,
+        ciudadano_id,
         municipio_id,
         servicio_id,
         tipo_novedad,
@@ -120,6 +131,7 @@ async function guardarReporte(evento, d) {
       )
       VALUES (
         ${evento.eventoId}::uuid,
+        ${d.ciudadanoId}::uuid,
         ${d.municipioId},
         ${d.servicioId},
         ${d.tipoNovedad},
